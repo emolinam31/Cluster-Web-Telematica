@@ -1,0 +1,37 @@
+<!--
+  =============================================================================
+  webapp/gallery.html - Página de galería de imágenes
+  =============================================================================
+
+  REQUISITOS QUE DEBE CUMPLIR ESTE ARCHIVO:
+    1. Mostrar imágenes que están en la carpeta img/
+    2. Probar que el TWS sirve archivos de tipo image/jpeg, image/png
+    3. Verificar que las rutas relativas (img/foto1.jpg) se resuelven bien
+    4. Caso de prueba: GET /gallery.html → 200 OK
+       Luego el navegador pide GET /img/foto1.jpg → 200 OK, image/jpeg
+
+  CLAVES PARA EL ÉXITO:
+    - Agregar al menos 2-3 imágenes a webapp/img/ para las pruebas
+    - Formatos recomendados: .jpg y .png (para probar dos MIME types)
+    - Si las imágenes no cargan → revisar file_get_content_type()
+    - Verificar que Content-Length sea correcto para archivos binarios
+  =============================================================================
+-->
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>TWS - Galería</title>
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+    <h1>Galería de Imágenes</h1>
+    <p>Prueba de servir archivos de imagen desde el TWS.</p>
+    <div>
+        <!-- Agregar imágenes reales en webapp/img/ para las pruebas -->
+        <img src="img/foto1.jpg" alt="Foto 1" width="300">
+        <img src="img/foto2.png" alt="Foto 2" width="300">
+    </div>
+    <a href="index.html">Volver al inicio</a>
+</body>
+</html>

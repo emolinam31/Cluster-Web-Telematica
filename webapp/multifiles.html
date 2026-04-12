@@ -1,0 +1,48 @@
+<!--
+  =============================================================================
+  webapp/multifiles.html - Página con múltiples recursos embebidos
+  =============================================================================
+
+  REQUISITOS QUE DEBE CUMPLIR ESTE ARCHIVO:
+    1. Incluir múltiples recursos de diferentes tipos en una sola página:
+       - CSS (css/style.css)
+       - Imágenes (img/*.jpg, img/*.png)
+       - Links a otros archivos (files/*)
+    2. Probar que el TWS maneja múltiples peticiones concurrentes
+       (el navegador pide el HTML, luego CSS, luego imágenes en paralelo)
+    3. Caso de prueba: GET /multifiles.html → 200 OK
+       Seguido de múltiples GET para cada recurso embebido
+
+  CLAVES PARA EL ÉXITO:
+    - El navegador abre múltiples conexiones TCP para descargar recursos
+      en paralelo → el TWS debe manejar concurrencia con pthreads
+    - Si una imagen no carga pero el HTML sí → revisar Content-Type
+    - Si TODO carga lento → el thread de accept() puede ser bottleneck
+    - Este caso prueba la concurrencia real del servidor
+    - Ideal para testing: abrir Chrome DevTools → Network → ver que todos
+      los recursos cargan con 200 OK
+  =============================================================================
+-->
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>TWS - Múltiples Archivos</title>
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+    <h1>Prueba de Múltiples Archivos</h1>
+    <p>Esta página carga múltiples recursos para probar concurrencia.</p>
+
+    <h2>Imágenes</h2>
+    <img src="img/foto1.jpg" alt="Foto 1" width="200">
+    <img src="img/foto2.png" alt="Foto 2" width="200">
+
+    <h2>Archivos descargables</h2>
+    <ul>
+        <li><a href="files/archivo_grande.bin">archivo_grande.bin (~1MB)</a></li>
+    </ul>
+
+    <a href="index.html">Volver al inicio</a>
+</body>
+</html>

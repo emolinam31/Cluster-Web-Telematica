@@ -1,0 +1,45 @@
+#
+# =============================================================================
+# .gitignore - Archivos y carpetas excluidos del control de versiones
+# =============================================================================
+#
+# REQUISITOS:
+#   1. Excluir ejecutables compilados (tws, pibl)
+#   2. Excluir archivos objeto (.o)
+#   3. Excluir archivos de log (.log)
+#   4. Excluir contenido del caché (cache/)
+#   5. Mantener las carpetas vacías con .gitkeep
+#   6. Excluir archivos del sistema operativo (.DS_Store, Thumbs.db)
+#
+# CLAVES:
+#   - Los .gitkeep se INCLUYEN (para que las carpetas existan en el repo)
+#   - Los logs y caché se EXCLUYEN (son generados en runtime)
+#   - Los ejecutables se EXCLUYEN (se compilan con make)
+# =============================================================================
+
+# Ejecutables compilados
+ws/tws
+pibl/pibl
+
+# Archivos objeto
+*.o
+
+# Logs (se generan en runtime)
+*.log
+ws/logs/*.log
+pibl/logs/*.log
+
+# Caché (se genera en runtime)
+pibl/cache/*
+!pibl/cache/.gitkeep
+
+# Archivos del sistema
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+*~
+
+# Archivos de IDE
+.vscode/
+.idea/

@@ -1,0 +1,42 @@
+<!--
+  =============================================================================
+  webapp/bigfile.html - Página para probar transferencia de archivos grandes
+  =============================================================================
+
+  REQUISITOS QUE DEBE CUMPLIR ESTE ARCHIVO:
+    1. Contener un link a un archivo grande (~1MB) en la carpeta files/
+    2. Probar que el TWS puede enviar archivos grandes sin cortar la respuesta
+    3. Caso de prueba: GET /files/archivo_grande.bin → 200 OK
+       Content-Length debe coincidir con el tamaño real del archivo
+
+  PASOS A TOMAR:
+    - Crear un archivo de ~1MB en webapp/files/:
+      En Linux: dd if=/dev/urandom of=webapp/files/archivo_grande.bin bs=1M count=1
+      En Windows (WSL): mismo comando
+    - Verificar que se transmite completo comparando tamaños
+
+  CLAVES PARA EL ÉXITO:
+    - Este es uno de los casos de prueba más importantes del PDF
+    - Si el archivo llega incompleto → problema en el loop de write()
+      de http_response.c (no está enviando todos los bytes)
+    - Verificar con: curl -o /tmp/test.bin http://IP:8080/files/archivo_grande.bin
+      luego: ls -la /tmp/test.bin (debe ser exactamente ~1MB)
+    - read() y write() trabajan en bloques de 4096 bytes → el loop debe
+      repetir hasta enviar todo el archivo
+  =============================================================================
+-->
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>TWS - Archivo Grande</title>
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+    <h1>Prueba de Archivo Grande</h1>
+    <p>Descarga un archivo de aproximadamente 1MB para verificar la transferencia completa.</p>
+    <a href="files/archivo_grande.bin" download>Descargar archivo_grande.bin (~1MB)</a>
+    <br><br>
+    <a href="index.html">Volver al inicio</a>
+</body>
+</html>

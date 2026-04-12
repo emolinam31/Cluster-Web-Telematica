@@ -1,0 +1,58 @@
+/*
+ * =============================================================================
+ * webapp/css/style.css - Hoja de estilos de las páginas de prueba
+ * =============================================================================
+ *
+ * REQUISITOS QUE DEBE CUMPLIR ESTE ARCHIVO:
+ *   1. Estilos básicos para las páginas de prueba
+ *   2. Probar que el TWS sirve archivos CSS con Content-Type: text/css
+ *   3. Caso de prueba: GET /css/style.css → 200 OK, Content-Type: text/css
+ *
+ * CLAVES PARA EL ÉXITO:
+ *   - Si el CSS no se aplica pero el HTML sí carga:
+ *     a. Verificar que file_get_content_type() retorna "text/css" para .css
+ *     b. Verificar que file_build_path() resuelve bien rutas con subdirectorio
+ *   - Este archivo verifica que el TWS maneja rutas tipo /css/style.css
+ *     (con subdirectorio) correctamente
+ * =============================================================================
+ */
+
+body {
+    font-family: Arial, Helvetica, sans-serif;
+    max-width: 800px;
+    margin: 0 auto;
+    padding: 20px;
+    background-color: #f5f5f5;
+    color: #333;
+}
+
+h1 {
+    color: #2c3e50;
+    border-bottom: 2px solid #3498db;
+    padding-bottom: 10px;
+}
+
+a {
+    color: #3498db;
+    text-decoration: none;
+}
+
+a:hover {
+    text-decoration: underline;
+}
+
+nav ul {
+    list-style: none;
+    padding: 0;
+}
+
+nav li {
+    margin: 8px 0;
+}
+
+img {
+    margin: 10px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    padding: 5px;
+}
