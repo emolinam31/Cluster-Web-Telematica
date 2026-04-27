@@ -1,48 +1,110 @@
-<!--
-  =============================================================================
-  webapp/multifiles.html - Página con múltiples recursos embebidos
-  =============================================================================
-
-  REQUISITOS QUE DEBE CUMPLIR ESTE ARCHIVO:
-    1. Incluir múltiples recursos de diferentes tipos en una sola página:
-       - CSS (css/style.css)
-       - Imágenes (img/*.jpg, img/*.png)
-       - Links a otros archivos (files/*)
-    2. Probar que el TWS maneja múltiples peticiones concurrentes
-       (el navegador pide el HTML, luego CSS, luego imágenes en paralelo)
-    3. Caso de prueba: GET /multifiles.html → 200 OK
-       Seguido de múltiples GET para cada recurso embebido
-
-  CLAVES PARA EL ÉXITO:
-    - El navegador abre múltiples conexiones TCP para descargar recursos
-      en paralelo → el TWS debe manejar concurrencia con pthreads
-    - Si una imagen no carga pero el HTML sí → revisar Content-Type
-    - Si TODO carga lento → el thread de accept() puede ser bottleneck
-    - Este caso prueba la concurrencia real del servidor
-    - Ideal para testing: abrir Chrome DevTools → Network → ver que todos
-      los recursos cargan con 200 OK
-  =============================================================================
--->
 <!DOCTYPE html>
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <title>TWS - Múltiples Archivos</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TWS - Múltiples archivos (Caso 4)</title>
     <link rel="stylesheet" href="css/style.css">
+    <link rel="icon" type="image/png" href="img/logo.png">
 </head>
 <body>
-    <h1>Prueba de Múltiples Archivos</h1>
-    <p>Esta página carga múltiples recursos para probar concurrencia.</p>
+    <header class="site-header">
+        <a href="index.html" class="brand">
+            <img src="img/logo.png" alt="Logo TWS">
+            <span class="brand-title">
+                Telematics Web Server
+                <span class="brand-sub">Caso 4 · Múltiples archivos (~1MB total)</span>
+            </span>
+        </a>
+        <nav class="top-nav">
+            <a href="index.html">Inicio</a>
+            <a href="gallery.html">Galería</a>
+            <a href="bigfile.html">Archivo grande</a>
+            <a href="multifiles.html" class="active">Múltiples archivos</a>
+            <a href="form.html">POST demo</a>
+        </nav>
+    </header>
 
-    <h2>Imágenes</h2>
-    <img src="img/foto1.jpg" alt="Foto 1" width="200">
-    <img src="img/foto2.png" alt="Foto 2" width="200">
+    <main class="container">
+        <section class="hero">
+            <span class="tag">Caso de prueba 4</span>
+            <h1>Múltiples recursos en paralelo</h1>
+            <p>
+                Esta página combina HTML, CSS, varias imágenes y varios archivos descargables
+                que en conjunto suman aproximadamente 1 MB. Cuando el navegador la abre lanza
+                múltiples peticiones concurrentes contra el PIBL/TWS, lo que valida la
+                concurrencia con threads.
+            </p>
+        </section>
 
-    <h2>Archivos descargables</h2>
-    <ul>
-        <li><a href="files/archivo_grande.bin">archivo_grande.bin (~1MB)</a></li>
-    </ul>
+        <h2>Imágenes embebidas</h2>
+        <div class="gallery">
+            <figure>
+                <img src="img/foto1.jpg" alt="Foto 1">
+                <figcaption>foto1.jpg</figcaption>
+            </figure>
+            <figure>
+                <img src="img/foto2.png" alt="Foto 2">
+                <figcaption>foto2.png</figcaption>
+            </figure>
+            <figure>
+                <img src="img/foto3.jpg" alt="Foto 3">
+                <figcaption>foto3.jpg</figcaption>
+            </figure>
+        </div>
 
-    <a href="index.html">Volver al inicio</a>
+        <h2>Archivos descargables (~1 MB en total)</h2>
+        <table class="files">
+            <thead>
+                <tr>
+                    <th>Archivo</th>
+                    <th>Tamaño aprox.</th>
+                    <th>Tipo</th>
+                    <th>Acción</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td><code>files/file_part1.bin</code></td>
+                    <td>~350 KB</td>
+                    <td><span class="badge">octet-stream</span></td>
+                    <td><a href="files/file_part1.bin" download>Descargar</a></td>
+                </tr>
+                <tr>
+                    <td><code>files/file_part2.bin</code></td>
+                    <td>~340 KB</td>
+                    <td><span class="badge">octet-stream</span></td>
+                    <td><a href="files/file_part2.bin" download>Descargar</a></td>
+                </tr>
+                <tr>
+                    <td><code>files/file_part3.bin</code></td>
+                    <td>~340 KB</td>
+                    <td><span class="badge">octet-stream</span></td>
+                    <td><a href="files/file_part3.bin" download>Descargar</a></td>
+                </tr>
+                <tr>
+                    <td><code>files/sample.txt</code></td>
+                    <td>&lt; 1 KB</td>
+                    <td><span class="badge">text/plain</span></td>
+                    <td><a href="files/sample.txt">Ver</a></td>
+                </tr>
+                <tr>
+                    <td><code>files/datos.csv</code></td>
+                    <td>&lt; 1 KB</td>
+                    <td><span class="badge">text/csv</span></td>
+                    <td><a href="files/datos.csv">Ver</a></td>
+                </tr>
+            </tbody>
+        </table>
+
+        <p style="margin-top:18px;">
+            <a href="index.html" class="btn secondary">← Volver al inicio</a>
+        </p>
+    </main>
+
+    <footer class="site-footer">
+        Abre DevTools → Network y observa las peticiones simultáneas. Todas deben terminar
+        con <code>200 OK</code> en menos de unos pocos segundos.
+    </footer>
 </body>
 </html>
