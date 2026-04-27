@@ -21,19 +21,7 @@
 
 #include "balancer.h"
 
-
-
-#define MAX_BACKENDS 16  /*Es el maximo de backends que el balanceador de carga puede lo elegimos para no quedarnos cortos*/
-
-
-
-
-/* 
-    Carga los backends desde el archivo de configuración pibl.config
-    retorna 0 si todo funciona y -1 si hay error
-*/
 int config_load(const char *config_file, backend_t *backends,
                 int max_backends, int *out_count);
-
 
 #endif
