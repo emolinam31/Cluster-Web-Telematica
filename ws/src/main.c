@@ -111,4 +111,94 @@ int main(int argc, char *argv[]) {
 
     close(server_fd);
     return 0;
+
+    void *handle_client(void *arg) {
+        client_context_t *ctx = (client_context_t *)arg;
+        char buffer[BUFFER_SIZE];
+    
+        ssize_t n = read(ctx->client_fd, buffer, sizeof(buffer) - 1);
+        if (n <= 0) {
+            close(ctx->client_fd);
+            free(ctx);
+            return NULL;
+        }
+        buffer[n] = '\0';
+    
+        /* Parsear Request-Line: METHOD URI VERSION */
+        char method[8], uri[2048], version[16];
+        if (sscanf(buffer, "%7s %2047s %15s", method, uri, version) != 3) {
+            char *resp = "HTTP/1.1 400 Bad Request\r\nContent-Length: 11\r\n\r\nBad Request";
+            write(ctx->client_fd, resp, strlen(resp));
+            close(ctx->client_fd);
+            free(ctx);
+            return NULL;
+        }
+    
+        /* Log a stdout */
+        printf("[WS] %s -> %s %s %s\n", ctx->client_ip, method, uri, version);
+    
+        /* Construir ruta completa del archivo */
+        char filepath[4096];
+        if (strcmp(uri, "/") == 0)
+            snprintf(filepath, sizeof(filepath), "%s/index.html", ctx->doc_root);
+        else
+            snprintf(filepath, sizeof(filepath), "%s%s", ctx->doc_root, uri);
+    
+        /* Verificar si el archivo existe */
+        FILE *file = fopen(filepath, "rb");
+        if (!file) {
+            char *resp = "HTTP/1.1 404 Not Found\r\n"
+                         "Content-Type: text/html\r\n"
+                         "Content-Length: 44\r\n"
+                         "\r\n"
+                         "<html><body>404 - Not Found</body></html>";
+            write(ctx->client_fd, resp, strlen(resp));
+            printf("[WS] %s <- 404 Not Found (%s)\n", ctx->client_ip, uri);
+            close(ctx->client_fd);
+            free(ctx);
+            return NULL;
+        }
+    
+        /* Obtener tamaño del archivo */
+        fseek(file, 0, SEEK_END);
+        long file_size = ftell(file);
+        fseek(file, 0, SEEK_SET);
+    
+        /* Determinar Content-Type básico */
+        const char *content_type = "application/octet-stream";
+        if (strstr(uri, ".html")) content_type = "text/html";
+        else if (strstr(uri, ".css")) content_type = "text/css";
+        else if (strstr(uri, ".js")) content_type = "application/javascript";
+        else if (strstr(uri, ".png")) content_type = "image/png";
+        else if (strstr(uri, ".jpg")) content_type = "image/jpeg";
+        else if (strstr(uri, ".gif")) content_type = "image/gif";
+    
+        /* Enviar headers */
+        char header[512];
+        int header_len = snprintf(header, sizeof(header),
+            "HTTP/1.1 200 OK\r\n"
+            "Content-Type: %s\r\n"
+            "Content-Length: %ld\r\n"
+            "\r\n",
+            content_type, file_size);
+    
+        write(ctx->client_fd, header, header_len);
+    
+        /* GET: enviar body | HEAD: solo headers (ya enviados) */
+        if (strcmp(method, "GET") == 0 || strcmp(method, "POST") == 0) {
+            char file_buf[4096];
+            size_t bytes;
+            while ((bytes = fread(file_buf, 1, sizeof(file_buf), file)) > 0) {
+                write(ctx->client_fd, file_buf, bytes);
+            }
+        }
+        /* HEAD: no envía body, solo los headers de arriba */
+    
+        printf("[WS] %s <- 200 OK %s (%ld bytes)\n", ctx->client_ip, uri, file_size);
+    
+        fclose(file);
+        close(ctx->client_fd);
+        free(ctx);
+        return NULL;
+    }
 }
