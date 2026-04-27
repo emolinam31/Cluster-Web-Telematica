@@ -21,12 +21,12 @@
 #define PIBL_HTTP_PARSER_H
 
 typedef struct {
-    char method[8]; /* Metodo HTTP: "GET", "HEAD" o "POST" */
-    char uri[2048]; /* Ruta del recurso solicitado, ej: "/index.html" */
-    char version[16]; /* Version del protocolo: "HTTP/1.1" */
-    char host[256]; /* Valor del header Host, obligatorio en HTTP/1.1 */
-    int content_length; /* Valor del header Content-Length (0 si no viene) */
-    char *body; /* Puntero al inicio del body dentro del buffer */
+    char method[8];
+    char uri[2048];
+    char version[16];
+    char host[256];
+    int  content_length;
+    char *body;
 } http_request_t;
 
 int  http_parse_request(const char *buffer, http_request_t *req);
