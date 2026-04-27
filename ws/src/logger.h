@@ -21,8 +21,11 @@
 #ifndef TWS_LOGGER_H
 #define TWS_LOGGER_H
 
+#include <stddef.h>
+
 int  logger_init(const char *log_file);
 void logger_log(const char *format, ...);
 void logger_close(void);
+void logger_request(const char *ip, const char *method, const char *uri, int status, size_t size);
 
 #endif

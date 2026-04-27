@@ -110,3 +110,7 @@ void logger_close(void) {
 
     pthread_mutex_destroy(&log_mutex);
 }
+
+void logger_request(const char *ip, const char *method, const char *uri, int status, size_t size) {
+    logger_log("%s %s %s %d %zu", ip, method, uri, status, size);
+}
