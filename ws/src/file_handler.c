@@ -39,9 +39,80 @@
  * =============================================================================
  */
 
+/* Autor: Camila Martinez
+ * Función: Dar información sobre los archivos en disco.
+ */
+ 
 #include "file_handler.h"
 
-#include <stdio.h>
-#include <string.h>
-#include <sys/stat.h>
-#include <limits.h>
+#include <stdio.h> /* Strings en formato, evita desbordamientos de buffer */
+#include <string.h> /* Manejo de strings */
+#include <sys/stat.h> /* stat() para verificar existencia y obtener tamaño */
+#include <limits.h> /* PATH_MAX para tamaño máximo de rutas */
+
+int file_build_path(const char *doc_root, const char *uri, char *out_path, size_t max_len) {
+    if (strcmp(uri, "/") == 0)
+        uri = "/index.html";
+
+    if (strstr(uri, "..") !=NULL)
+        return -1;
+
+    snprintf(out_path, max_len, "%s%s", doc_root, uri);
+    return 0;
+}
+
+int file_exists(const char *doc_root, const char*uri) {
+    char full_path[PATH_MAX];
+
+    if (file_build_path(doc_root, uri, full_path, sizeof(full_path)) != 0)
+        return 0;
+    
+    struct stat st;
+
+    if (stat(full_path, &st) == -1)
+        return 0;
+    
+    return S_ISREG(st.st_mode);
+}
+
+size_t file_get_size(const char *full_path) {
+    struct stat st;
+
+    if (stat(full_path, &st) == -1)
+        return 0;
+
+    return (size_t)st.st_size;
+}
+
+const char *file_get_content_type(const char *full_path) {
+    const char *ext = strrchr(full_path, '.');
+
+    if (!ext)
+        return "application/octet-stream";
+
+    if (strcmp(ext, ".html") == 0)
+        return "text/html";
+    
+    if (strcmp(ext, ".css") == 0)
+        return "text/css";
+
+    if (strcmp(ext, ".js") == 0)
+        return "application/javascript";
+    
+    if (strcmp(ext, ".jpg") == 0 || strcmp(ext, ".jpeg") == 0)
+        return "image/jpeg";
+
+    if (strcmp(ext, ".png") == 0)
+        return "image/png";
+
+    if (strcmp(ext, ".gif") == 0)
+        return "image/gif";
+    
+    if (strcmp(ext, ".ico") == 0)
+        return "image/x-icon";
+    
+    if (strcmp(ext, ".txt") == 0)
+        return "text/plain";
+
+    return "application/octet-stream";
+}

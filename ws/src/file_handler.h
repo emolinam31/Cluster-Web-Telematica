@@ -17,15 +17,22 @@
  * =============================================================================
  */
 
+/* Autor: Camila Martinez
+ * Función: Declara que finciones existen en file_handler.c y que parametros reciben.
+ */
+ 
 #ifndef TWS_FILE_HANDLER_H
 #define TWS_FILE_HANDLER_H
 
 #include <stddef.h>
 
+int file_build_path(const char *doc_root, const char *uri, char *out_path, size_t max_len);
+
 int file_exists(const char *doc_root, const char *uri);
+
 size_t file_get_size(const char *full_path);
+
 const char *file_get_content_type(const char *full_path);
-int file_build_path(const char *doc_root, const char *uri,
-                    char *out_path, size_t max_len);
+
 
 #endif
