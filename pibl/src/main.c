@@ -41,3 +41,70 @@
 #include "balancer.h"
 #include "cache.h"
 #include "logger.h"
+
+int main(int argc, char *argv[]){
+    
+    int port;
+    char *config_file;
+    char *log_file;
+    int cache_ttl;
+
+    backend_t backends[MAX_BACKENDS];
+    int num_backends = 0;
+
+    /* Validar cantidad de argumentos */
+    if (argc != 5){
+        fprintf(stderr, "Uso: %s <HTTP_PORT> <ConfigFile> <LogFile> <CacheTTL>\n", argv[0]);
+        return 1;
+    }
+
+    /* Leer argumentos de consola */
+    port = atoi(argv[1]);
+    config_file = argv[2];
+    log_file = argv[3];
+    cache_ttl = atoi(argv[4]);
+
+    /* Validar puerto permitido */
+    if (port != 80 && port != 8080){
+        fprintf(stderr, "Error: puerto invalido. Use 80 o 8080\n");
+        return 1;
+    }
+
+    /* Iniciar logger */
+    if (logger_init(log_file) < 0){
+        fprintf(stderr, "Error: no se pudo iniciar el logger\n");
+        return 1;
+    }
+    
+    /* Cargar archivo de configuracion */
+    if (config_load(config_file, backends, MAX_BACKENDS, &num_backends) < 0){
+        fprintf(stderr, "Error: no se pudo cargar la configuracion\n");
+        logger_close();
+        return 1;
+    }
+    
+    /* Iniciar balanceador */
+    if (balancer_init(backends, num_backends) < 0){
+        fprintf(stderr, "Error: no se pudo iniciar el balanceador\n");
+        logger_close();
+        return 1;
+    }
+
+    /* Iniciar cache */
+    if (cache_init(cache_ttl) < 0){
+        fprintf(stderr,"Error: no se pudo iniciar el cache\n");
+        logger_close();
+        return 1;
+    }
+
+    /* Iniciar servidor TCP */
+    if (server_start(port) < 0){
+        logger_close();
+        return 1;    
+    }
+
+    logger_close();
+    return 0;
+
+}
+
