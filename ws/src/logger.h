@@ -14,6 +14,10 @@
  * =============================================================================
  */
 
+/* Autor: Camila Martinez 
+   Función: Declarar las funciones del sistema de logger.c
+*/
+
 #ifndef TWS_LOGGER_H
 #define TWS_LOGGER_H
 

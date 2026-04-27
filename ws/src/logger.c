@@ -33,6 +33,10 @@
  * =============================================================================
  */
 
+ /* Autor: Camila Martinez 
+   Función: Registrar mensajes con timestamp en la terminal y un archivo de texto
+*/
+
 #include "logger.h"
 
 #include <stdio.h>
@@ -41,3 +45,68 @@
 #include <stdarg.h>
 #include <time.h>
 #include <pthread.h>
+
+static FILE *log_fp = NULL;
+
+static pthread_mutex_t log_mutex;
+
+int logger_init(const char *log_file) {
+    log_fp = fopen(log_file, "a");
+
+    if (log_fp == NULL) 
+        return -1;
+    
+    pthread_mutex_init(&log_mutex, NULL);
+
+    return 0;
+}
+
+void logger_log(const char *format, ...) {
+    pthread_mutex_lock(&log_mutex);
+
+    time_t now = time(NULL);
+
+    struct tm *t = localtime(&now);
+
+    char timestamp[32];
+    strftime(timestamp, sizeof(timestamp), "[%Y-%m-%d %H:%M:%S]", t);
+
+    va_list args;
+
+    va_start(args, format);
+
+    printf("%s ", timestamp);
+
+    vprintf(format, args);
+
+    printf("\n");
+
+    va_end(args);
+
+    if (log_fp != NULL) {
+        va_start(args, format);
+
+        fprintf(log_fp, "%s", timestamp);
+
+        vfprintf(log_fp, format, args);
+
+        fprintf(log_fp, "\n");
+
+        va_end(args);
+    }
+
+    fflush(stdout);
+    fflush(log_fp);
+
+    pthread_mutex_unlock(&log_mutex);
+}
+
+void logger_close(void) {
+    if (log_fp != NULL) {
+        fclose(log_fp);
+
+        log_fp = NULL;
+    }
+
+    pthread_mutex_destroy(&log_mutex);
+}
