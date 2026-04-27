@@ -15,6 +15,10 @@
  * =============================================================================
  */
 
+ /* Autor: Camila Martinez
+ * Función: Dar información sobre los archivos en disco.
+ */
+
 #ifndef PIBL_BALANCER_H
 #define PIBL_BALANCER_H
 

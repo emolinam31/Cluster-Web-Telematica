@@ -33,8 +33,65 @@
  * =============================================================================
  */
 
+/* Autor: Camila Martinez
+ * Función: Dar información sobre los archivos en disco.
+ */
+
 #include "balancer.h"
 
+#include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
 #include <pthread.h>
+
+static backend_t *backends_list = NULL;
+
+static int backends_count = 0;
+
+static unsigned int current_index = 0;
+
+static pthread_mutex_t balancer_mutex;
+
+int balancer_init(backend_t *backends, int num_backends) {
+    if (backends == NULL || num_backends < 1) {
+        fprintf(stderr, "Error: backends nulos o parametros inválidosn");
+
+        return -1;
+    }
+    
+    backends_list = malloc(sizeof(backend_t) * num_backends);
+
+    if (backends_list == NULL) {
+        fprintf(stderr, "Error: No se pudo asignar memoria para backendsn, error al reservar memoria\n");
+
+        return -1;
+    }
+
+    memcpy(backends_list, backends, sizeof(backend_t) * num_backends);
+
+    backends_count = num_backends;
+
+    current_index = 0;
+
+    pthread_mutex_init(&balancer_mutex, NULL);
+
+    return 0;
+}
+
+backend_t *balancer_next(void) {
+    if (backends_list == NULL) {
+        fprintf(stderr, "Error: Balancer no inicializado, backends_list es nulo\n");
+
+        return NULL;
+    }
+
+    pthread_mutex_lock(&balancer_mutex);
+
+    int idx = (int)(current_index % (unsigned int)backends_count);
+
+    current_index++;
+
+    pthread_mutex_unlock(&balancer_mutex);
+
+    return &backends_list[idx];
+}
