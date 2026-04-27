@@ -42,11 +42,11 @@ static int version_soportada(const char *version){
 }
 
 /*
- * Busca un header especifico dentro del buffer HTTP.
- * Recorre linea por linea hasta el separador \r\n\r\n comparando el inicio
- * de cada linea con "header_name:" de forma case-insensitive.
- *
- * Retorna: puntero al primer caracter del valor, o NULL si no se encuentra.
+    Busca un header especifico dentro del buffer HTTP.
+    Recorre linea por linea hasta el separador \r\n\r\n comparando el inicio
+    de cada linea con "header_name:" de forma case-insensitive.
+ 
+    Retorna: puntero al primer caracter del valor, o NULL si no se encuentra.
  */
 const char *http_find_header(const char *buffer, const char *header_name){
     if (buffer == NULL || header_name == NULL){
