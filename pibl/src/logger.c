@@ -33,3 +33,74 @@
 #include <stdarg.h>
 #include <time.h>
 #include <pthread.h>
+
+
+static FILE *log_file = NULL;
+static pthread_mutex_t log_mutex;
+
+int logger_init(const char *path){
+    log_file = fopen(path, "a");
+    if (log_file == NULL){
+        return -1;
+    }
+
+    if (pthread_mutex_init(&log_mutex, NULL) != 0){
+        fclose(log_file);
+        log_file = NULL;
+        return -1;
+    }
+
+    return 0;
+}
+
+void logger_log(const char *format, ...){
+    if (log_file == NULL){
+        return;
+    }
+
+    time_t now = time(NULL);
+    struct tm *tm_info = localtime(&now);
+
+    char timestamp[32];
+    strftime(timestamp, sizeof(timestamp), "%Y-%m-%d %H:%M:%S", tm_info);
+
+    va_list ap;
+    va_start(ap, format);
+
+    pthread_mutex_lock(&log_mutex);
+
+    fprintf(stdout, "[%s] ", timestamp);
+    va_list ap_out;
+    va_copy(ap_out, ap);
+    vfprintf(stdout, format, ap_out);
+    va_end(ap_out);
+
+    fprintf(log_file, "[%s] ", timestamp);
+    va_copy(ap_out, ap);
+    vfprintf(log_file, format, ap_out);
+    va_end(ap_out);
+
+    fprintf(stdout, "\n");
+    fprintf(log_file, "\n");
+
+    fflush(stdout);
+    fflush(log_file);
+
+    pthread_mutex_unlock(&log_mutex);
+
+    va_end(ap);
+}
+
+void logger_close(void){
+    pthread_mutex_lock(&log_mutex);
+    if (log_file != NULL){
+        fflush(log_file);
+        fclose(log_file);
+        log_file = NULL;
+    }
+    pthread_mutex_unlock(&log_mutex);
+
+    pthread_mutex_destroy(&log_mutex);
+}
+
+

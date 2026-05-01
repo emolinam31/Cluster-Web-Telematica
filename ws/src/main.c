@@ -36,6 +36,8 @@
 #include "server.h"
 #include "logger.h"
 
+#include <sys/socket.h>
+
 #define BUFFER_SIZE 8192
 
 typedef struct {
