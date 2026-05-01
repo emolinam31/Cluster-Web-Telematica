@@ -29,6 +29,7 @@
 #include "http_parser.h"
 #include "proxy.h"
 #include "balancer.h"
+#include "cache.h"
 #include "logger.h"
 
 #include <stdio.h>
@@ -67,6 +68,7 @@ static void  send_simple_response(int client_fd, const char *status_line,
                                   const char *body);
 static int   write_all(int fd, const char *buf, size_t len);
 static size_t insert_via_header(char *buf, size_t len, size_t max);
+static ssize_t read_client_request(int fd, char *buffer, size_t max);
 
 int server_start(int port) {
     int server_fd = socket(AF_INET, SOCK_STREAM, 0);
@@ -160,6 +162,7 @@ static void *handle_client(void *arg) {
      */
     char *req_buf  = malloc(CLIENT_BUF_SIZE);
     char *resp_buf = malloc(BACKEND_BUF_SIZE);
+    size_t resp_len = 0;
 
     if (!req_buf || !resp_buf) {
         logger_log("[PIBL] %s -> 500 Internal Server Error -> MISS",
@@ -169,7 +172,7 @@ static void *handle_client(void *arg) {
         goto cleanup;
     }
 
-    ssize_t r = read(ctx->client_fd, req_buf, CLIENT_BUF_SIZE - 1);
+    ssize_t r = read_client_request(ctx->client_fd, req_buf, CLIENT_BUF_SIZE - 1);
     if (r <= 0) {
         goto cleanup;
     }
@@ -187,9 +190,31 @@ static void *handle_client(void *arg) {
     logger_log("[PIBL] %s -> %s %s",
                ctx->client_ip, req.method, req.uri);
 
-    /* TODO RF-08: aqui ira cache_lookup() antes de tocar backends. */
+    if (strcmp(req.method, "GET") == 0 &&
+        cache_lookup(req.uri, resp_buf, &resp_len, BACKEND_BUF_SIZE)) {
+        size_t sent = 0;
 
-    size_t resp_len = 0;
+        while (sent < resp_len) {
+            size_t remaining = resp_len - sent;
+            size_t chunk = remaining > WRITE_CHUNK ? WRITE_CHUNK : remaining;
+            ssize_t w = write(ctx->client_fd, resp_buf + sent, chunk);
+            if (w < 0) {
+                if (errno == EINTR) {
+                    continue;
+                }
+                break;
+            }
+            if (w == 0) {
+                break;
+            }
+            sent += (size_t)w;
+        }
+
+        logger_log("[PIBL] %s -> %s %s -> CACHE HIT -> %zu bytes reenviados",
+                   ctx->client_ip, req.method, req.uri, sent);
+        goto cleanup;
+    }
+
     int    rc       = -1;
     int    n        = balancer_count();
     if (n < 1) {
@@ -226,7 +251,13 @@ static void *handle_client(void *arg) {
 
     resp_len = insert_via_header(resp_buf, resp_len, BACKEND_BUF_SIZE);
 
-    /* TODO RF-08: aqui ira cache_store() con la respuesta si corresponde. */
+    if (strcmp(req.method, "GET") == 0 &&
+        resp_len > 0 &&
+        memcmp(resp_buf, "HTTP/1.1 200", 12) == 0) {
+        if (cache_store(req.uri, resp_buf, resp_len) == 0) {
+            logger_log("[PIBL] cache STORE %s (%zu bytes)", req.uri, resp_len);
+        }
+    }
 
     size_t sent = 0;
     while (sent < resp_len) {
@@ -336,4 +367,44 @@ static size_t insert_via_header(char *buf, size_t len, size_t max) {
     memcpy(buf + insert_at, VIA_HEADER, VIA_HEADER_LEN);
 
     return len + VIA_HEADER_LEN;
+}
+
+static ssize_t read_client_request(int fd, char *buffer, size_t max) {
+    size_t total = 0;
+
+    while (total < max) {
+        ssize_t n = read(fd, buffer + total, max - total);
+        if (n < 0) {
+            if (errno == EINTR) {
+                continue;
+            }
+            return -1;
+        }
+        if (n == 0) {
+            break;
+        }
+
+        total += (size_t)n;
+        buffer[total] = '\0';
+
+        if (strstr(buffer, "\r\n\r\n")) {
+            http_request_t req;
+            char *body_start;
+            if (http_parse_request(buffer, &req) < 0) {
+                return (ssize_t)total;
+            }
+            body_start = strstr(buffer, "\r\n\r\n");
+            if (!body_start || req.content_length <= 0) {
+                return (ssize_t)total;
+            }
+            body_start += 4;
+            if (total - (size_t)(body_start - buffer) >=
+                (size_t)req.content_length) {
+                return (ssize_t)total;
+            }
+        }
+    }
+
+    buffer[total] = '\0';
+    return (ssize_t)total;
 }
