@@ -10,19 +10,16 @@
  *   1. read() la peticion del cliente.                                        [RF-02]
  *   2. http_parse_request(): si falla -> 400 Bad Request al cliente.          [RF-06]
  *   3. Failover loop: balancer_next() -> proxy_forward() hasta que un
- *      backend responda; si todos caen -> 502 Bad Gateway al cliente.         [RF-03/RF-10]
+ *      backend responda; si todos caen -> 502 Bad Gateway al cliente.          [RF-03/RF-10]
  *   4. Insertar el header "Via: PIBL/1.0" en la respuesta (proxy transparente
- *      excepto Via, segun PDF seccion 5.6).                                   [RF-04]
+ *      excepto Via, segun PDF seccion 5.6).                                    [RF-04]
  *   5. write() loop al cliente en bloques de 4096 bytes hasta vaciar el
- *      buffer de respuesta. Esto cumple el criterio del RF-04:
- *        "Para archivos grandes (~1MB), la respuesta se reenvia en bloques
- *         de 4096 bytes sin cortar"                                           [RF-04]
- *   6. Log de la transaccion (stdout; cuando se conecte logger_log() del
- *      RF-07, basta con cambiar las llamadas printf por logger_log).
+ *      buffer de respuesta (RF-20 bigfile ~1 MB).                             [RF-04]
+ *   6. Log de transaccion con logger_log() (dual stdout + archivo).            [RF-07]
  *   7. close()/free().
  *
- * NOTA: el cache (RF-08) y el logger dual (RF-07) son requisitos posteriores.
- * Este archivo deja "ganchos" claros para conectarlos sin reescribir nada.
+ * RF-08 (cache): marcadores TODO cache_lookup/cache_store antes y despues del
+ *                backend hasta integrar cache.h en este flujo.
  * =============================================================================
  */
 
@@ -44,6 +41,14 @@
 #include <netinet/in.h>
 #include <arpa/inet.h>
 
+/*
+ * Tamanos de buffer:
+ *   - CLIENT_BUF_SIZE: tipico para un request HTTP (8 KB es estandar)
+ *   - BACKEND_BUF_SIZE: 2 MB para soportar el caso de archivo de ~1 MB
+ *     del RF-20 (bigfile.html) con margen para headers.
+ *   - WRITE_CHUNK: 4 KB exacto, criterio del RF-04.
+ *   - BACKLOG: cola de conexiones pendientes para listen() (RF-02).
+ */
 #define CLIENT_BUF_SIZE    8192
 #define BACKEND_BUF_SIZE   (2 * 1024 * 1024)
 #define WRITE_CHUNK        4096
@@ -63,7 +68,7 @@ static void  send_simple_response(int client_fd, const char *status_line,
 static int   write_all(int fd, const char *buf, size_t len);
 static size_t insert_via_header(char *buf, size_t len, size_t max);
 
-int server_start(int port){
+int server_start(int port) {
     int server_fd = socket(AF_INET, SOCK_STREAM, 0);
     if (server_fd < 0) {
         logger_log("[PIBL] Error creando socket");
@@ -72,7 +77,7 @@ int server_start(int port){
 
     int opt = 1;
     if (setsockopt(server_fd, SOL_SOCKET, SO_REUSEADDR,
-                   &opt, sizeof(opt)) < 0){
+                   &opt, sizeof(opt)) < 0) {
         logger_log("[PIBL] Error configurando SO_REUSEADDR");
         close(server_fd);
         return -1;
@@ -85,19 +90,17 @@ int server_start(int port){
     server_addr.sin_port        = htons((uint16_t)port);
 
     if (bind(server_fd, (struct sockaddr *)&server_addr,
-             sizeof(server_addr)) < 0){
-        if (errno == EADDRINUSE){
+             sizeof(server_addr)) < 0) {
+        if (errno == EADDRINUSE) {
             logger_log("[PIBL] Error: puerto %d en uso", port);
-        } 
-        else{
+        } else {
             logger_log("[PIBL] Error en bind");
         }
-
         close(server_fd);
         return -1;
     }
 
-    if (listen(server_fd, BACKLOG) < 0){
+    if (listen(server_fd, BACKLOG) < 0) {
         logger_log("[PIBL] Error en listen");
         close(server_fd);
         return -1;
@@ -106,24 +109,23 @@ int server_start(int port){
     logger_log("[PIBL] Proxy escuchando en puerto %d", port);
     logger_log("[PIBL] Backends configurados: %d", balancer_count());
 
-    while (1){
+    while (1) {
         struct sockaddr_in client_addr;
-        socklen_t client_len = sizeof(client_addr);
+        socklen_t          client_len = sizeof(client_addr);
 
         int client_fd = accept(server_fd,
                                (struct sockaddr *)&client_addr,
                                &client_len);
-        if (client_fd < 0){
-            if (errno == EINTR){
+        if (client_fd < 0) {
+            if (errno == EINTR) {
                 continue;
             }
-
             logger_log("[PIBL] Error en accept");
             continue;
         }
 
         pibl_ctx_t *ctx = malloc(sizeof(pibl_ctx_t));
-        if (!ctx){
+        if (!ctx) {
             logger_log("[PIBL] Error reservando memoria para cliente");
             close(client_fd);
             continue;
@@ -134,7 +136,7 @@ int server_start(int port){
                   ctx->client_ip, sizeof(ctx->client_ip));
 
         pthread_t thread;
-        if (pthread_create(&thread, NULL, handle_client, ctx) != 0){
+        if (pthread_create(&thread, NULL, handle_client, ctx) != 0) {
             logger_log("[PIBL] Error creando thread para cliente %s",
                        ctx->client_ip);
             close(client_fd);
@@ -149,13 +151,17 @@ int server_start(int port){
     return 0;
 }
 
-static void *handle_client(void *arg){
+static void *handle_client(void *arg) {
     pibl_ctx_t *ctx = (pibl_ctx_t *)arg;
 
+    /*
+     * Buffers grandes en heap (no en la pila del thread): 2 MB romperia
+     * un stack pequeno.
+     */
     char *req_buf  = malloc(CLIENT_BUF_SIZE);
     char *resp_buf = malloc(BACKEND_BUF_SIZE);
 
-    if (!req_buf || !resp_buf){
+    if (!req_buf || !resp_buf) {
         logger_log("[PIBL] %s -> 500 Internal Server Error -> MISS",
                    ctx->client_ip);
         send_simple_response(ctx->client_fd, "500 Internal Server Error",
@@ -164,36 +170,35 @@ static void *handle_client(void *arg){
     }
 
     ssize_t r = read(ctx->client_fd, req_buf, CLIENT_BUF_SIZE - 1);
-    if (r <= 0){
+    if (r <= 0) {
         goto cleanup;
     }
 
     req_buf[r] = '\0';
 
     http_request_t req;
-    if (http_parse_request(req_buf, &req) < 0){
+    if (http_parse_request(req_buf, &req) < 0) {
         send_simple_response(ctx->client_fd, "400 Bad Request",
                              "<html><body>400 Bad Request</body></html>");
-
-        logger_log("[PIBL] %s -> 400 Bad Request -> MISS",
-                   ctx->client_ip);
+        logger_log("[PIBL] %s -> 400 Bad Request -> MISS", ctx->client_ip);
         goto cleanup;
     }
 
     logger_log("[PIBL] %s -> %s %s",
                ctx->client_ip, req.method, req.uri);
 
-    size_t resp_len = 0;
-    int rc = -1;
-    int n = balancer_count();
+    /* TODO RF-08: aqui ira cache_lookup() antes de tocar backends. */
 
+    size_t resp_len = 0;
+    int    rc       = -1;
+    int    n        = balancer_count();
     if (n < 1) {
         n = 1;
     }
 
     backend_t *be_used = NULL;
 
-    for (int i = 0; i < n && rc < 0; i++){
+    for (int i = 0; i < n && rc < 0; i++) {
         backend_t *be = balancer_next();
         if (!be) {
             break;
@@ -203,19 +208,17 @@ static void *handle_client(void *arg){
                            req_buf, (size_t)r,
                            resp_buf, &resp_len, BACKEND_BUF_SIZE);
 
-        if (rc == 0){
+        if (rc == 0) {
             be_used = be;
-        } 
-        else{
+        } else {
             logger_log("[PIBL] backend %s:%d fallo, intentando siguiente",
                        be->ip, be->port);
         }
     }
 
-    if (rc < 0 || resp_len == 0){
+    if (rc < 0 || resp_len == 0) {
         send_simple_response(ctx->client_fd, "502 Bad Gateway",
                              "<html><body>502 Bad Gateway</body></html>");
-
         logger_log("[PIBL] %s -> %s %s -> 502 Bad Gateway -> MISS",
                    ctx->client_ip, req.method, req.uri);
         goto cleanup;
@@ -223,31 +226,32 @@ static void *handle_client(void *arg){
 
     resp_len = insert_via_header(resp_buf, resp_len, BACKEND_BUF_SIZE);
 
+    /* TODO RF-08: aqui ira cache_store() con la respuesta si corresponde. */
+
     size_t sent = 0;
-    while (sent < resp_len){
+    while (sent < resp_len) {
         size_t remaining = resp_len - sent;
         size_t chunk = remaining > WRITE_CHUNK ? WRITE_CHUNK : remaining;
 
         ssize_t w = write(ctx->client_fd, resp_buf + sent, chunk);
-        if (w < 0){
-            if (errno == EINTR){
+        if (w < 0) {
+            if (errno == EINTR) {
                 continue;
             }
-
             logger_log("[PIBL] Error enviando respuesta al cliente %s",
                        ctx->client_ip);
             break;
         }
-
-        if (w == 0){
+        if (w == 0) {
             break;
         }
-
         sent += (size_t)w;
     }
 
-    if (be_used){
-        logger_log("[PIBL] %s -> %s %s -> %s:%d -> 200 OK -> MISS -> %zu bytes reenviados",
+    if (be_used) {
+        /* MISS hasta implementar RF-08; no se inventa codigo HTTP del backend */
+        logger_log("[PIBL] %s -> %s %s -> %s:%d -> MISS -> %zu bytes "
+                   "reenviados",
                    ctx->client_ip,
                    req.method,
                    req.uri,
@@ -265,20 +269,20 @@ cleanup:
 }
 
 static void send_simple_response(int client_fd, const char *status_line,
-                                 const char *body){
-    char header[256];
+                                 const char *body) {
+    char   header[256];
     size_t body_len = strlen(body);
 
     int hdr_len = snprintf(header, sizeof(header),
-        "HTTP/1.1 %s\r\n"
-        "Content-Type: text/html\r\n"
-        "Content-Length: %zu\r\n"
-        "Via: PIBL/1.0\r\n"
-        "Connection: close\r\n"
-        "\r\n",
-        status_line, body_len);
+                           "HTTP/1.1 %s\r\n"
+                           "Content-Type: text/html\r\n"
+                           "Content-Length: %zu\r\n"
+                           "Via: PIBL/1.0\r\n"
+                           "Connection: close\r\n"
+                           "\r\n",
+                           status_line, body_len);
 
-    if (hdr_len <= 0){
+    if (hdr_len <= 0) {
         return;
     }
 
@@ -286,21 +290,20 @@ static void send_simple_response(int client_fd, const char *status_line,
     write_all(client_fd, body, body_len);
 }
 
-static int write_all(int fd, const char *buf, size_t len){
+static int write_all(int fd, const char *buf, size_t len) {
     size_t sent = 0;
 
-    while (sent < len){
+    while (sent < len) {
         ssize_t w = write(fd, buf + sent, len - sent);
 
-        if (w < 0){
-            if (errno == EINTR){
+        if (w < 0) {
+            if (errno == EINTR) {
                 continue;
             }
-
             return -1;
         }
 
-        if (w == 0){
+        if (w == 0) {
             return -1;
         }
 
@@ -310,19 +313,19 @@ static int write_all(int fd, const char *buf, size_t len){
     return 0;
 }
 
-static size_t insert_via_header(char *buf, size_t len, size_t max){
-    if (!buf || len == 0){
+static size_t insert_via_header(char *buf, size_t len, size_t max) {
+    if (!buf || len == 0) {
         return len;
     }
 
     void *first_crlf = memmem(buf, len, "\r\n", 2);
-    if (!first_crlf){
+    if (!first_crlf) {
         return len;
     }
 
     size_t insert_at = (size_t)((char *)first_crlf - buf) + 2;
 
-    if (len + VIA_HEADER_LEN > max){
+    if (len + VIA_HEADER_LEN > max) {
         logger_log("[PIBL] insert_via: sin espacio para agregar header Via");
         return len;
     }
@@ -330,7 +333,6 @@ static size_t insert_via_header(char *buf, size_t len, size_t max){
     memmove(buf + insert_at + VIA_HEADER_LEN,
             buf + insert_at,
             len - insert_at);
-
     memcpy(buf + insert_at, VIA_HEADER, VIA_HEADER_LEN);
 
     return len + VIA_HEADER_LEN;
