@@ -60,8 +60,6 @@ void logger_log(const char *format, ...){
         return;
     }
 
-    pthread_mutex_lock(&log_mutex);
-
     time_t now = time(NULL);
     struct tm *tm_info = localtime(&now);
 
@@ -73,18 +71,21 @@ void logger_log(const char *format, ...){
         snprintf(timestamp, sizeof(timestamp), "sin-fecha");
     }
 
+    va_list ap;
+    va_start(ap, format);
+
+    pthread_mutex_lock(&log_mutex);
+
     fprintf(stdout, "[%s] ", timestamp);
+    va_list ap_out;
+    va_copy(ap_out, ap);
+    vfprintf(stdout, format, ap_out);
+    va_end(ap_out);
+
     fprintf(log_file, "[%s] ", timestamp);
-
-    va_list args_stdout;
-    va_start(args_stdout, format);
-    vfprintf(stdout, format, args_stdout);
-    va_end(args_stdout);
-
-    va_list args_file;
-    va_start(args_file, format);
-    vfprintf(log_file, format, args_file);
-    va_end(args_file);
+    va_copy(ap_out, ap);
+    vfprintf(log_file, format, ap_out);
+    va_end(ap_out);
 
     fprintf(stdout, "\n");
     fprintf(log_file, "\n");
@@ -93,6 +94,8 @@ void logger_log(const char *format, ...){
     fflush(log_file);
 
     pthread_mutex_unlock(&log_mutex);
+
+    va_end(ap);
 }
 
 void logger_close(void){
@@ -103,6 +106,7 @@ void logger_close(void){
     pthread_mutex_lock(&log_mutex);
 
     if (log_file != NULL){
+        fflush(log_file);
         fclose(log_file);
         log_file = NULL;
     }
@@ -111,5 +115,3 @@ void logger_close(void){
     pthread_mutex_unlock(&log_mutex);
     pthread_mutex_destroy(&log_mutex);
 }
-
-
