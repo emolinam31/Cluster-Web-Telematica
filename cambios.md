@@ -10,6 +10,50 @@ Tambien se verifico la compilacion en entorno Linux/WSL usando `make` y `gcc`.
 
 ## Archivos Modificados
 
+### Adaptacion de sockets basada en Beej
+
+Se ajusto la creacion de sockets para quedar mas alineada con la guia de Beej:
+
+Referencia:
+
+- https://beej.us/guide/bgnet/html/split/system-calls-or-bust.html#socket
+
+Patron adoptado:
+
+```c
+getaddrinfo();
+socket(res->ai_family, res->ai_socktype, res->ai_protocol);
+bind();      /* para sockets listener */
+listen();    /* para servidores */
+connect();   /* para sockets cliente hacia backend */
+freeaddrinfo();
+```
+
+Antes, parte del codigo construia manualmente estructuras `sockaddr_in` con `AF_INET`, `INADDR_ANY`, `htons()` e `inet_pton()`. Ese enfoque funcionaba para IPv4, pero era menos flexible y menos parecido al flujo recomendado por Beej.
+
+Despues del cambio:
+
+- TWS crea su socket listener con `getaddrinfo(NULL, port, ..., AI_PASSIVE)`.
+- PIBL crea su socket listener con `getaddrinfo(NULL, port, ..., AI_PASSIVE)`.
+- PIBL conecta a backends con `getaddrinfo(backend_ip, backend_port, ...)`.
+- Se recorren los resultados de `getaddrinfo()` hasta encontrar uno que permita crear socket y hacer `bind()` o `connect()`.
+- Se mantiene `SO_REUSEADDR` para evitar errores al reiniciar servidores.
+- Se conserva el funcionamiento existente de threads, logs, Round Robin, cache y reenvio HTTP.
+- Queda preparado para IPv4 e IPv6 mediante `AF_UNSPEC`.
+
+Archivos afectados por esta adaptacion:
+
+- `ws/src/server.c`
+- `pibl/src/server.c`
+- `pibl/src/proxy.c`
+
+Verificacion posterior al cambio:
+
+- `ws` compila correctamente en Linux/WSL.
+- `pibl` compila correctamente en Linux/WSL.
+- Se probo `GET /index.html` a traves del PIBL y respondio `200 OK`.
+- Se probo `HEAD /index.html` y respondio headers correctos.
+
 ### `ws/src/main.c`
 
 Antes el archivo tenia una mezcla de codigo de servidor, errores de sintaxis y una funcion `handle_client` definida dentro de `main`, lo cual impedia compilar correctamente.

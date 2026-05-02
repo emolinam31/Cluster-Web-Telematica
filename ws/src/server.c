@@ -7,6 +7,7 @@
 #include <arpa/inet.h>
 #include <errno.h>
 #include <limits.h>
+#include <netdb.h>
 #include <netinet/in.h>
 #include <pthread.h>
 #include <stdio.h>
@@ -27,46 +28,22 @@ typedef struct {
 static void *handle_client(void *arg);
 static ssize_t read_http_request(int fd, char *buffer, size_t max);
 static int headers_complete(const char *buffer);
+static int create_listener_socket(int port);
+static void sockaddr_to_ip(const struct sockaddr *addr, char *out,
+                           size_t out_size);
 
 int server_start(int port, const char *doc_root) {
     int server_fd;
-    int opt = 1;
-    struct sockaddr_in addr;
 
-    server_fd = socket(AF_INET, SOCK_STREAM, 0);
+    server_fd = create_listener_socket(port);
     if (server_fd < 0) {
-        logger_log("[TWS] Error creando socket: %s", strerror(errno));
-        return -1;
-    }
-
-    if (setsockopt(server_fd, SOL_SOCKET, SO_REUSEADDR,
-                   &opt, sizeof(opt)) < 0) {
-        logger_log("[TWS] Error en setsockopt: %s", strerror(errno));
-        close(server_fd);
-        return -1;
-    }
-
-    memset(&addr, 0, sizeof(addr));
-    addr.sin_family = AF_INET;
-    addr.sin_addr.s_addr = INADDR_ANY;
-    addr.sin_port = htons((uint16_t)port);
-
-    if (bind(server_fd, (struct sockaddr *)&addr, sizeof(addr)) < 0) {
-        logger_log("[TWS] Error en bind puerto %d: %s", port, strerror(errno));
-        close(server_fd);
-        return -1;
-    }
-
-    if (listen(server_fd, BACKLOG) < 0) {
-        logger_log("[TWS] Error en listen: %s", strerror(errno));
-        close(server_fd);
         return -1;
     }
 
     logger_log("[TWS] Escuchando en puerto %d", port);
 
     while (1) {
-        struct sockaddr_in client_addr;
+        struct sockaddr_storage client_addr;
         socklen_t client_len = sizeof(client_addr);
         int client_fd = accept(server_fd, (struct sockaddr *)&client_addr,
                                &client_len);
@@ -89,8 +66,8 @@ int server_start(int port, const char *doc_root) {
 
         ctx->client_fd = client_fd;
         ctx->doc_root = doc_root;
-        inet_ntop(AF_INET, &client_addr.sin_addr,
-                  ctx->client_ip, sizeof(ctx->client_ip));
+        sockaddr_to_ip((struct sockaddr *)&client_addr,
+                       ctx->client_ip, sizeof(ctx->client_ip));
 
         if (pthread_create(&thread, NULL, handle_client, ctx) != 0) {
             logger_log("[TWS] Error creando thread para %s", ctx->client_ip);
@@ -226,4 +203,76 @@ static ssize_t read_http_request(int fd, char *buffer, size_t max) {
 
 static int headers_complete(const char *buffer) {
     return strstr(buffer, "\r\n\r\n") != NULL;
+}
+
+static int create_listener_socket(int port) {
+    struct addrinfo hints;
+    struct addrinfo *servinfo = NULL;
+    struct addrinfo *p;
+    char port_str[16];
+    int status;
+    int listener = -1;
+    int yes = 1;
+
+    snprintf(port_str, sizeof(port_str), "%d", port);
+    memset(&hints, 0, sizeof(hints));
+    hints.ai_family = AF_UNSPEC;
+    hints.ai_socktype = SOCK_STREAM;
+    hints.ai_flags = AI_PASSIVE;
+
+    status = getaddrinfo(NULL, port_str, &hints, &servinfo);
+    if (status != 0) {
+        logger_log("[TWS] getaddrinfo: %s", gai_strerror(status));
+        return -1;
+    }
+
+    for (p = servinfo; p != NULL; p = p->ai_next) {
+        listener = socket(p->ai_family, p->ai_socktype, p->ai_protocol);
+        if (listener < 0) {
+            continue;
+        }
+
+        setsockopt(listener, SOL_SOCKET, SO_REUSEADDR, &yes, sizeof(yes));
+
+        if (bind(listener, p->ai_addr, p->ai_addrlen) == 0) {
+            break;
+        }
+
+        close(listener);
+        listener = -1;
+    }
+
+    freeaddrinfo(servinfo);
+
+    if (listener < 0) {
+        logger_log("[TWS] No se pudo crear/bindear socket en puerto %d", port);
+        return -1;
+    }
+
+    if (listen(listener, BACKLOG) < 0) {
+        logger_log("[TWS] Error en listen: %s", strerror(errno));
+        close(listener);
+        return -1;
+    }
+
+    return listener;
+}
+
+static void sockaddr_to_ip(const struct sockaddr *addr, char *out,
+                           size_t out_size) {
+    void *src = NULL;
+
+    if (!addr || !out || out_size == 0) {
+        return;
+    }
+
+    if (addr->sa_family == AF_INET) {
+        src = &((struct sockaddr_in *)addr)->sin_addr;
+    } else if (addr->sa_family == AF_INET6) {
+        src = &((struct sockaddr_in6 *)addr)->sin6_addr;
+    }
+
+    if (!src || !inet_ntop(addr->sa_family, src, out, out_size)) {
+        snprintf(out, out_size, "unknown");
+    }
 }
