@@ -29,6 +29,7 @@
 #include "http_parser.h"
 #include "proxy.h"
 #include "balancer.h"
+#include "cache.h"
 #include "logger.h"
 
 #include <stdio.h>
@@ -38,6 +39,7 @@
 #include <unistd.h>
 #include <pthread.h>
 #include <sys/socket.h>
+#include <netdb.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
 
@@ -67,42 +69,14 @@ static void  send_simple_response(int client_fd, const char *status_line,
                                   const char *body);
 static int   write_all(int fd, const char *buf, size_t len);
 static size_t insert_via_header(char *buf, size_t len, size_t max);
+static ssize_t read_client_request(int fd, char *buffer, size_t max);
+static int   create_listener_socket(int port);
+static void  sockaddr_to_ip(const struct sockaddr *addr, char *out,
+                            size_t out_size);
 
 int server_start(int port) {
-    int server_fd = socket(AF_INET, SOCK_STREAM, 0);
+    int server_fd = create_listener_socket(port);
     if (server_fd < 0) {
-        logger_log("[PIBL] Error creando socket");
-        return -1;
-    }
-
-    int opt = 1;
-    if (setsockopt(server_fd, SOL_SOCKET, SO_REUSEADDR,
-                   &opt, sizeof(opt)) < 0) {
-        logger_log("[PIBL] Error configurando SO_REUSEADDR");
-        close(server_fd);
-        return -1;
-    }
-
-    struct sockaddr_in server_addr;
-    memset(&server_addr, 0, sizeof(server_addr));
-    server_addr.sin_family      = AF_INET;
-    server_addr.sin_addr.s_addr = INADDR_ANY;
-    server_addr.sin_port        = htons((uint16_t)port);
-
-    if (bind(server_fd, (struct sockaddr *)&server_addr,
-             sizeof(server_addr)) < 0) {
-        if (errno == EADDRINUSE) {
-            logger_log("[PIBL] Error: puerto %d en uso", port);
-        } else {
-            logger_log("[PIBL] Error en bind");
-        }
-        close(server_fd);
-        return -1;
-    }
-
-    if (listen(server_fd, BACKLOG) < 0) {
-        logger_log("[PIBL] Error en listen");
-        close(server_fd);
         return -1;
     }
 
@@ -110,7 +84,7 @@ int server_start(int port) {
     logger_log("[PIBL] Backends configurados: %d", balancer_count());
 
     while (1) {
-        struct sockaddr_in client_addr;
+        struct sockaddr_storage client_addr;
         socklen_t          client_len = sizeof(client_addr);
 
         int client_fd = accept(server_fd,
@@ -132,8 +106,8 @@ int server_start(int port) {
         }
 
         ctx->client_fd = client_fd;
-        inet_ntop(AF_INET, &client_addr.sin_addr,
-                  ctx->client_ip, sizeof(ctx->client_ip));
+        sockaddr_to_ip((struct sockaddr *)&client_addr,
+                       ctx->client_ip, sizeof(ctx->client_ip));
 
         pthread_t thread;
         if (pthread_create(&thread, NULL, handle_client, ctx) != 0) {
@@ -160,6 +134,7 @@ static void *handle_client(void *arg) {
      */
     char *req_buf  = malloc(CLIENT_BUF_SIZE);
     char *resp_buf = malloc(BACKEND_BUF_SIZE);
+    size_t resp_len = 0;
 
     if (!req_buf || !resp_buf) {
         logger_log("[PIBL] %s -> 500 Internal Server Error -> MISS",
@@ -169,7 +144,7 @@ static void *handle_client(void *arg) {
         goto cleanup;
     }
 
-    ssize_t r = read(ctx->client_fd, req_buf, CLIENT_BUF_SIZE - 1);
+    ssize_t r = read_client_request(ctx->client_fd, req_buf, CLIENT_BUF_SIZE - 1);
     if (r <= 0) {
         goto cleanup;
     }
@@ -187,9 +162,31 @@ static void *handle_client(void *arg) {
     logger_log("[PIBL] %s -> %s %s",
                ctx->client_ip, req.method, req.uri);
 
-    /* TODO RF-08: aqui ira cache_lookup() antes de tocar backends. */
+    if (strcmp(req.method, "GET") == 0 &&
+        cache_lookup(req.uri, resp_buf, &resp_len, BACKEND_BUF_SIZE)) {
+        size_t sent = 0;
 
-    size_t resp_len = 0;
+        while (sent < resp_len) {
+            size_t remaining = resp_len - sent;
+            size_t chunk = remaining > WRITE_CHUNK ? WRITE_CHUNK : remaining;
+            ssize_t w = write(ctx->client_fd, resp_buf + sent, chunk);
+            if (w < 0) {
+                if (errno == EINTR) {
+                    continue;
+                }
+                break;
+            }
+            if (w == 0) {
+                break;
+            }
+            sent += (size_t)w;
+        }
+
+        logger_log("[PIBL] %s -> %s %s -> CACHE HIT -> %zu bytes reenviados",
+                   ctx->client_ip, req.method, req.uri, sent);
+        goto cleanup;
+    }
+
     int    rc       = -1;
     int    n        = balancer_count();
     if (n < 1) {
@@ -226,7 +223,13 @@ static void *handle_client(void *arg) {
 
     resp_len = insert_via_header(resp_buf, resp_len, BACKEND_BUF_SIZE);
 
-    /* TODO RF-08: aqui ira cache_store() con la respuesta si corresponde. */
+    if (strcmp(req.method, "GET") == 0 &&
+        resp_len > 0 &&
+        memcmp(resp_buf, "HTTP/1.1 200", 12) == 0) {
+        if (cache_store(req.uri, resp_buf, resp_len) == 0) {
+            logger_log("[PIBL] cache STORE %s (%zu bytes)", req.uri, resp_len);
+        }
+    }
 
     size_t sent = 0;
     while (sent < resp_len) {
@@ -336,4 +339,116 @@ static size_t insert_via_header(char *buf, size_t len, size_t max) {
     memcpy(buf + insert_at, VIA_HEADER, VIA_HEADER_LEN);
 
     return len + VIA_HEADER_LEN;
+}
+
+static ssize_t read_client_request(int fd, char *buffer, size_t max) {
+    size_t total = 0;
+
+    while (total < max) {
+        ssize_t n = read(fd, buffer + total, max - total);
+        if (n < 0) {
+            if (errno == EINTR) {
+                continue;
+            }
+            return -1;
+        }
+        if (n == 0) {
+            break;
+        }
+
+        total += (size_t)n;
+        buffer[total] = '\0';
+
+        if (strstr(buffer, "\r\n\r\n")) {
+            http_request_t req;
+            char *body_start;
+            if (http_parse_request(buffer, &req) < 0) {
+                return (ssize_t)total;
+            }
+            body_start = strstr(buffer, "\r\n\r\n");
+            if (!body_start || req.content_length <= 0) {
+                return (ssize_t)total;
+            }
+            body_start += 4;
+            if (total - (size_t)(body_start - buffer) >=
+                (size_t)req.content_length) {
+                return (ssize_t)total;
+            }
+        }
+    }
+
+    buffer[total] = '\0';
+    return (ssize_t)total;
+}
+
+static int create_listener_socket(int port) {
+    struct addrinfo hints;
+    struct addrinfo *servinfo = NULL;
+    struct addrinfo *p;
+    char port_str[16];
+    int status;
+    int listener = -1;
+    int yes = 1;
+
+    snprintf(port_str, sizeof(port_str), "%d", port);
+    memset(&hints, 0, sizeof(hints));
+    hints.ai_family = AF_UNSPEC;
+    hints.ai_socktype = SOCK_STREAM;
+    hints.ai_flags = AI_PASSIVE;
+
+    status = getaddrinfo(NULL, port_str, &hints, &servinfo);
+    if (status != 0) {
+        logger_log("[PIBL] getaddrinfo: %s", gai_strerror(status));
+        return -1;
+    }
+
+    for (p = servinfo; p != NULL; p = p->ai_next) {
+        listener = socket(p->ai_family, p->ai_socktype, p->ai_protocol);
+        if (listener < 0) {
+            continue;
+        }
+
+        setsockopt(listener, SOL_SOCKET, SO_REUSEADDR, &yes, sizeof(yes));
+
+        if (bind(listener, p->ai_addr, p->ai_addrlen) == 0) {
+            break;
+        }
+
+        close(listener);
+        listener = -1;
+    }
+
+    freeaddrinfo(servinfo);
+
+    if (listener < 0) {
+        logger_log("[PIBL] No se pudo crear/bindear socket en puerto %d", port);
+        return -1;
+    }
+
+    if (listen(listener, BACKLOG) < 0) {
+        logger_log("[PIBL] Error en listen: %s", strerror(errno));
+        close(listener);
+        return -1;
+    }
+
+    return listener;
+}
+
+static void sockaddr_to_ip(const struct sockaddr *addr, char *out,
+                           size_t out_size) {
+    void *src = NULL;
+
+    if (!addr || !out || out_size == 0) {
+        return;
+    }
+
+    if (addr->sa_family == AF_INET) {
+        src = &((struct sockaddr_in *)addr)->sin_addr;
+    } else if (addr->sa_family == AF_INET6) {
+        src = &((struct sockaddr_in6 *)addr)->sin6_addr;
+    }
+
+    if (!src || !inet_ntop(addr->sa_family, src, out, out_size)) {
+        snprintf(out, out_size, "unknown");
+    }
 }

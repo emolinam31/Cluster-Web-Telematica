@@ -30,6 +30,7 @@
 #include <unistd.h>
 #include <sys/socket.h>
 #include <sys/time.h>
+#include <netdb.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
 #include <errno.h>
@@ -63,6 +64,54 @@ static long find_content_length(const char *buf, size_t headers_len) {
     return -1;
 }
 
+static int connect_to_backend(const char *backend_ip, int backend_port) {
+    struct addrinfo hints;
+    struct addrinfo *servinfo = NULL;
+    struct addrinfo *p;
+    char port_str[16];
+    int status;
+    int backend_fd = -1;
+    struct timeval tv = { .tv_sec = PROXY_TIMEOUT_SEC, .tv_usec = 0 };
+
+    snprintf(port_str, sizeof(port_str), "%d", backend_port);
+    memset(&hints, 0, sizeof(hints));
+    hints.ai_family = AF_UNSPEC;
+    hints.ai_socktype = SOCK_STREAM;
+
+    status = getaddrinfo(backend_ip, port_str, &hints, &servinfo);
+    if (status != 0) {
+        fprintf(stderr, "[PIBL] getaddrinfo %s:%d fallo: %s\n",
+                backend_ip, backend_port, gai_strerror(status));
+        return -1;
+    }
+
+    for (p = servinfo; p != NULL; p = p->ai_next) {
+        backend_fd = socket(p->ai_family, p->ai_socktype, p->ai_protocol);
+        if (backend_fd < 0) {
+            continue;
+        }
+
+        setsockopt(backend_fd, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv));
+        setsockopt(backend_fd, SOL_SOCKET, SO_SNDTIMEO, &tv, sizeof(tv));
+
+        if (connect(backend_fd, p->ai_addr, p->ai_addrlen) == 0) {
+            break;
+        }
+
+        close(backend_fd);
+        backend_fd = -1;
+    }
+
+    freeaddrinfo(servinfo);
+
+    if (backend_fd < 0) {
+        fprintf(stderr, "[PIBL] connect %s:%d fallo: %s\n",
+                backend_ip, backend_port, strerror(errno));
+    }
+
+    return backend_fd;
+}
+
 int proxy_forward(const char *backend_ip, int backend_port,
                   const char *request, size_t req_len,
                   char *response, size_t *resp_len, size_t resp_max) {
@@ -71,38 +120,9 @@ int proxy_forward(const char *backend_ip, int backend_port,
     }
     *resp_len = 0;
 
-    /* Paso 1: socket TCP nuevo hacia el backend */
-    int backend_fd = socket(AF_INET, SOCK_STREAM, 0);
+    /* Paso 1: getaddrinfo() + socket() + connect(), siguiendo el patron Beej */
+    int backend_fd = connect_to_backend(backend_ip, backend_port);
     if (backend_fd < 0) {
-        perror("[PIBL] socket(backend)");
-        return -1;
-    }
-
-    /* Paso 2: timeouts para no colgarse si el backend muere */
-    struct timeval tv = { .tv_sec = PROXY_TIMEOUT_SEC, .tv_usec = 0 };
-    if (setsockopt(backend_fd, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv)) < 0) {
-        perror("[PIBL] setsockopt(SO_RCVTIMEO)");
-    }
-    if (setsockopt(backend_fd, SOL_SOCKET, SO_SNDTIMEO, &tv, sizeof(tv)) < 0) {
-        perror("[PIBL] setsockopt(SO_SNDTIMEO)");
-    }
-
-    /* Paso 3: armar direccion del backend */
-    struct sockaddr_in addr;
-    memset(&addr, 0, sizeof(addr));
-    addr.sin_family = AF_INET;
-    addr.sin_port = htons((uint16_t)backend_port);
-    if (inet_pton(AF_INET, backend_ip, &addr.sin_addr) != 1) {
-        fprintf(stderr, "[PIBL] IP de backend invalida: %s\n", backend_ip);
-        close(backend_fd);
-        return -1;
-    }
-
-    /* Paso 4: connect() - si falla, el caller probara otro backend (RF-03) */
-    if (connect(backend_fd, (struct sockaddr *)&addr, sizeof(addr)) < 0) {
-        fprintf(stderr, "[PIBL] connect %s:%d fallo: %s\n",
-                backend_ip, backend_port, strerror(errno));
-        close(backend_fd);
         return -1;
     }
 
