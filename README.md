@@ -1,89 +1,252 @@
 # Cluster-Web-Telematica
 
-Proyecto 1: Proxy Inverso + Balanceador de Carga + Web Server (PIBL-WS).
+Proyecto 1 de Telematica: implementacion de un cluster web compuesto por un
+Proxy Inverso + Balanceador de Carga (PIBL) y tres servidores web TWS.
+
+Este repositorio contiene el codigo fuente, la aplicacion web de prueba, la
+configuracion de backends y las instrucciones necesarias para compilar, ejecutar,
+probar y desplegar el cluster.
 
 ## Integrantes
 
-- Esteban Molina - Codigo
-- Integrante 2 - Codigo
-- Integrante 3 - Codigo
+1. Felipe Ochoa Lotero
+2. Camila Martinez Montoya
+3. Esteban Molina Mejia
+
+> Pendiente: agregar los codigos reales de los integrantes.
+
+## Alcance Del Proyecto
+
+Este proyecto implementa una arquitectura HTTP distribuida donde el cliente
+entra por un unico punto, el PIBL, y este se encarga de repartir las solicitudes
+hacia tres servidores TWS. La idea principal es separar responsabilidades: los
+TWS sirven contenido web y el PIBL maneja el acceso externo, el balanceo, el
+cache, el failover y el registro de actividad.
+
+Funcionalidades cubiertas:
+
+| Componente | Funcionalidad                                                                                |
+|------------|----------------------------------------------------------------------------------------------|
+| TWS        | Servidor HTTP/1.1 escrito en C usando sockets.                                               |
+| TWS        | Soporte de metodos `GET`, `HEAD` y `POST`.                                                   |
+| TWS        | Respuestas `200 OK`, `400 Bad Request` y `404 Not Found`.                                    |
+| TWS        | Servicio de archivos desde `DocumentRootFolder`.                                             |
+| TWS        | Concurrencia mediante threads.                                                               |
+| TWS        | Registro de peticiones y respuestas en stdout y archivo.                                     |
+| PIBL       | Proxy inverso HTTP/1.1 escrito en C usando sockets.                                          |
+| PIBL       | Escucha en puerto `80` o `8080`.                                                             |
+| PIBL       | Crea un socket cliente nuevo hacia el backend seleccionado.                                  |
+| PIBL       | Reenvia la respuesta del backend al cliente.                                                 |
+| PIBL       | Maneja multiples clientes con threads.                                                       |
+| PIBL       | Registra peticiones y respuestas en stdout y archivo.                                        |
+| PIBL       | Implementa cache persistente en disco.                                                       |
+| PIBL       | Usa TTL configurable por linea de comandos.                                                  |
+| PIBL       | Balancea carga con Round Robin.                                                              |
+| PIBL       | Lee backends desde archivo de configuracion.                                                 |
+| Webapp     | Incluye cuatro casos de prueba: pagina basica, galeria, archivo grande y multiples archivos. |
+| Despliegue | Despliegue en cuatro instancias EC2: una para PIBL y tres para TWS.                          |
+
+Datos que todavia se deben completar antes de cerrar la entrega:
+
+- Codigos reales de los integrantes.
+- IP publica final del PIBL desplegado en AWS.
+- Capturas de pantalla o evidencias graficas de las pruebas.
 
 ## Introduccion
 
-Este proyecto implementa una arquitectura cliente/servidor HTTP/1.1 compuesta por un Proxy Inverso + Balanceador de Carga (PIBL) y tres servidores web TWS. El cliente se conecta unicamente al PIBL; el PIBL recibe la peticion, selecciona un backend mediante Round Robin, reenvia la solicitud al TWS elegido, recibe la respuesta y la retorna al cliente.
+El objetivo del proyecto es construir un web cluster basado en una arquitectura
+cliente-servidor capaz de atender solicitudes HTTP a traves de un punto de
+entrada unico. El cliente no se conecta directamente a los servidores web, sino
+al PIBL. El PIBL recibe la peticion, selecciona un TWS mediante Round Robin,
+reenvia la solicitud, recibe la respuesta y la retorna al cliente.
 
-La solucion esta escrita en C usando API Sockets POSIX y pthreads. El PIBL incorpora cache persistente en disco con TTL configurable, de forma que las respuestas GET exitosas se almacenan en `pibl/cache/` y pueden servirse posteriormente sin contactar al backend mientras sigan vigentes.
+La solucion esta implementada en C con sockets POSIX y `pthreads`. El TWS se
+encarga de servir recursos estaticos y responder solicitudes HTTP basicas. El
+PIBL concentra las responsabilidades de proxy inverso, balanceo de carga,
+failover, cache persistente en disco y logging.
 
 ## Desarrollo
 
-### Arquitectura
+### Arquitectura General
 
-```
+La arquitectura logica que usamos es:
+
+```text
 Cliente HTTP
     |
+    | HTTP/1.1
     v
-PIBL - Proxy Inverso + Balanceador
-    |-- TWS 1 - DocumentRoot webapp/
-    |-- TWS 2 - DocumentRoot webapp/
-    |-- TWS 3 - DocumentRoot webapp/
+PIBL - Proxy Inverso + Balanceador de Carga
+    |
+    | Socket TCP hacia backend seleccionado
+    +-- TWS 1 - DocumentRoot webapp/
+    +-- TWS 2 - DocumentRoot webapp/
+    +-- TWS 3 - DocumentRoot webapp/
 ```
 
-En pruebas locales los TWS escuchan en `127.0.0.1:8081`, `127.0.0.1:8082` y `127.0.0.1:8083`; el PIBL escucha en `8080`. En AWS se deben reemplazar esos backends por las IPs privadas de las tres instancias TWS.
+Para el despliegue en AWS trabajamos con cuatro instancias EC2:
+
+| Instancia | Rol                         | Red                                              |
+|-----------|-----------------------------|--------------------------------------------------|
+| EC2 PIBL  | Proxy inverso y balanceador | IP publica, puerto `8080` expuesto a clientes ,,,|
+| EC2 TWS 1 | Servidor web backend        | IP privada, puerto `8080` accesible desde la VPC |
+| EC2 TWS 2 | Servidor web backend        | IP privada, puerto `8080` accesible desde la VPC |
+| EC2 TWS 3 | Servidor web backend        | IP privada, puerto `8080` accesible desde la VPC |
+
+El archivo actual `pibl/pibl.conf` contiene estos backends privados:
+
+```text
+backend 10.0.1.196 8080
+backend 10.0.1.171 8080
+backend 10.0.1.190 8080
+```
+
+Para pruebas locales se puede usar la misma arquitectura en una sola maquina,
+cambiando `pibl/pibl.conf` temporalmente a:
+
+```text
+backend 127.0.0.1 8081
+backend 127.0.0.1 8082
+backend 127.0.0.1 8083
+```
 
 ### TWS
 
-El TWS se ejecuta como:
+El TWS esta en la carpeta `ws/`. Su punto de entrada es `ws/src/main.c` y se
+compila en un ejecutable llamado `tws`.
+
+Forma de ejecucion:
 
 ```bash
 ./tws <HTTP_PORT> <LogFile> <DocumentRootFolder>
 ```
 
-Funciones implementadas:
+Ejemplo:
 
-- Parsing de HTTP/1.1 para `GET`, `HEAD` y `POST`.
-- Validacion de `Host`, version `HTTP/1.1` y request-line.
-- Respuestas `200 OK`, `400 Bad Request` y `404 Not Found`.
-- Servicio de archivos desde `DocumentRootFolder`.
-- MIME types: HTML, CSS, JS, JPG/JPEG, PNG, GIF, ICO, TXT, CSV y binario por defecto.
-- Proteccion basica contra path traversal rechazando rutas con `..` o `\`.
-- Concurrencia con un thread por cliente.
-- Logger thread-safe a stdout y archivo.
+```bash
+./tws 8080 logs/tws.log ../webapp
+```
+
+Lo que hace el TWS:
+
+- Valida argumentos de entrada.
+- Valida que el puerto este entre `1` y `65535`.
+- Valida que `DocumentRootFolder` exista y sea un directorio.
+- Crea el socket TCP con `getaddrinfo`, `socket`, `bind` y `listen`.
+- Acepta clientes con `accept`.
+- Maneja cada conexion en un thread independiente.
+- Parsea request-line, version HTTP, header `Host` y `Content-Length`.
+- Soporta los metodos `GET`, `HEAD` y `POST`.
+- Responde `200 OK` cuando el recurso existe.
+- Responde `400 Bad Request` cuando la peticion no es valida.
+- Responde `404 Not Found` cuando el recurso no existe.
+- Sirve archivos desde el `DocumentRootFolder`.
+- Rechaza rutas con `..` o `\` para evitar path traversal.
+- Detecta tipos MIME para HTML, CSS, JS, JPEG, PNG, GIF, ICO, TXT, CSV y binario por defecto.
+- Registra actividad en stdout y archivo usando un logger thread-safe.
+
+El metodo `HEAD` retorna los mismos headers de un `GET`, pero sin cuerpo. Para
+`POST /submit`, el servidor responde una pagina HTML simple confirmando la
+recepcion.
 
 ### PIBL
 
-El PIBL se ejecuta como:
+El PIBL esta en la carpeta `pibl/`. Su punto de entrada es `pibl/src/main.c` y
+se compila en un ejecutable llamado `pibl`.
+
+Forma de ejecucion:
 
 ```bash
 ./pibl <HTTP_PORT> <ConfigFile> <LogFile> <CacheTTL>
 ```
 
-Funciones implementadas:
+Ejemplo:
 
-- Listener HTTP en puerto 80 u 8080.
-- Un thread por conexion entrante.
-- Parser HTTP/1.1 antes de reenviar la peticion.
-- Nuevo socket cliente por cada intento de backend.
-- Reenvio completo de request y response.
-- Balanceo Round Robin protegido por mutex.
-- Failover: si un backend falla, intenta con el siguiente.
-- Logger dual stdout + archivo.
-- Cache persistente en disco para respuestas `GET 200 OK`.
-- TTL configurable por CLI. Con `CacheTTL=0`, el cache queda deshabilitado.
-- Header `Age` cuando una respuesta se sirve desde cache.
+```bash
+./pibl 8080 pibl.conf logs/pibl.log 300
+```
 
-### Webapp
+El puerto del PIBL esta restringido a `80` o `8080`.
 
-La carpeta `webapp/` es el `DocumentRootFolder` para los tres TWS:
+Lo que hace el PIBL:
 
-- `index.html`: caso 1, hipertextos + una imagen.
-- `gallery.html`: caso 2, multiples imagenes.
-- `bigfile.html`: caso 3, archivo binario de aproximadamente 1 MB.
-- `multifiles.html`: caso 4, multiples archivos que suman aproximadamente 1 MB.
-- `form.html`: prueba adicional de metodo POST.
+- Valida argumentos de entrada.
+- Lee los backends desde `pibl.conf`.
+- Inicializa el balanceador Round Robin.
+- Inicializa el cache con TTL configurable.
+- Crea el socket listener para clientes HTTP.
+- Maneja cada cliente en un thread independiente.
+- Parsea la solicitud HTTP/1.1 antes de reenviarla.
+- Reenvia la peticion al backend seleccionado mediante un socket nuevo.
+- Reenvia la respuesta del backend hacia el cliente.
+- Agrega el header `Via: PIBL/1.0`.
+- Hace failover basico: si un backend falla, intenta con el siguiente.
+- Registra actividad en stdout y archivo usando un logger thread-safe.
+
+### Balanceo Round Robin
+
+El balanceador se implementa en `pibl/src/balancer.c`. Mantiene una lista de
+backends cargada desde `pibl.conf` y un indice compartido protegido con
+`pthread_mutex_t`.
+
+La seleccion sigue esta rotacion:
+
+```text
+TWS 1 -> TWS 2 -> TWS 3 -> TWS 1 -> ...
+```
+
+Si un backend no responde, el PIBL registra el fallo y prueba el siguiente
+backend disponible hasta agotar la cantidad configurada.
+
+### Cache En Disco
+
+El cache del PIBL se implementa en `pibl/src/cache.c` y usa el directorio
+`pibl/cache/` relativo al lugar desde donde se ejecuta el proceso.
+
+Comportamiento del cache:
+
+- Solo se consulta y almacena cache para solicitudes `GET`.
+- Solo se almacenan respuestas `HTTP/1.1 200 OK`.
+- El archivo cacheado contiene la respuesta HTTP completa: headers y body.
+- El TTL se recibe por CLI en segundos.
+- Con `CacheTTL=0`, el cache queda deshabilitado.
+- Si una entrada supera el TTL, se elimina y se vuelve a consultar al backend.
+- Cuando hay cache HIT, el PIBL responde desde disco y agrega el header `Age`.
+- El acceso al cache esta protegido con mutex para evitar escrituras concurrentes inconsistentes.
+
+Ejemplo:
+
+```bash
+./pibl 8080 pibl.conf logs/pibl.log 30
+```
+
+En ese caso, una respuesta cacheada es valida durante 30 segundos.
+
+### Webapp De Pruebas
+
+La carpeta `webapp/` se usa como `DocumentRootFolder` de los tres TWS.
+
+| Recurso          | Caso que verifica                                       |
+|------------------|---------------------------------------------------------|
+| `index.html`     | Pagina base con hipertextos, estilos y una imagen.      |
+| `gallery.html`   | Carga de multiples imagenes.                            |
+| `bigfile.html`   | Descarga de archivo binario cercano a 1 MB.             |
+| `multifiles.html`| Carga de multiples archivos que en conjunto rondan 1 MB.|
+| `form.html`      | Prueba adicional de metodo `POST`.                      |
+| `404.html`       | Recurso HTML usado como pagina de apoyo para errores.   |
+
+Archivos binarios disponibles:
+
+```text
+webapp/files/archivo_grande.bin
+webapp/files/file_part1.bin
+webapp/files/file_part2.bin
+webapp/files/file_part3.bin
+```
 
 ## Compilacion
 
-Ejecutar en Linux o WSL:
+El proyecto se compila en Linux/Ubuntu. Desde la raiz del repositorio:
 
 ```bash
 cd ws
@@ -95,7 +258,17 @@ make clean
 make
 ```
 
+Resultado esperado:
+
+- `ws/tws`
+- `pibl/pibl`
+
+Los Makefiles usan `gcc` con `-Wall -Wextra -pthread`.
+
 ## Ejecucion Local
+
+Para probar todo en una sola maquina, primero se ajusta `pibl/pibl.conf` con
+los backends locales `127.0.0.1:8081`, `127.0.0.1:8082` y `127.0.0.1:8083`.
 
 Terminal 1:
 
@@ -129,7 +302,7 @@ mkdir -p logs cache
 ./pibl 8080 pibl.conf logs/pibl.log 30
 ```
 
-Abrir en navegador:
+Rutas para abrir desde navegador:
 
 ```text
 http://127.0.0.1:8080/index.html
@@ -139,25 +312,26 @@ http://127.0.0.1:8080/multifiles.html
 http://127.0.0.1:8080/form.html
 ```
 
-## Lista De Pruebas
+## Pruebas Funcionales
 
-1. GET normal:
+### GET
 
 ```bash
 curl -v http://127.0.0.1:8080/index.html
 ```
 
-Esperado: `HTTP/1.1 200 OK`, `Content-Type: text/html`, `Content-Length`.
+Resultado esperado: `HTTP/1.1 200 OK`, `Content-Type: text/html` y
+`Content-Length`.
 
-2. HEAD:
+### HEAD
 
 ```bash
 curl -I http://127.0.0.1:8080/index.html
 ```
 
-Esperado: headers de `200 OK` sin body.
+Resultado esperado: headers de `200 OK` sin body.
 
-3. POST:
+### POST
 
 ```bash
 curl -v -X POST http://127.0.0.1:8080/submit \
@@ -165,57 +339,72 @@ curl -v -X POST http://127.0.0.1:8080/submit \
   -d "nombre=Esteban&mensaje=Hola"
 ```
 
-Esperado: `200 OK` y log de POST en PIBL y TWS.
+Resultado esperado: `HTTP/1.1 200 OK` y registro del `POST` en logs de PIBL y
+TWS.
 
-4. 404:
+### 404
 
 ```bash
 curl -v http://127.0.0.1:8080/no-existe.html
 ```
 
-Esperado: `HTTP/1.1 404 Not Found`.
+Resultado esperado: `HTTP/1.1 404 Not Found`.
 
-5. 400 por peticion malformada:
+### 400
 
 ```bash
 printf 'BASURA\r\n\r\n' | nc 127.0.0.1 8080
 ```
 
-Esperado: `HTTP/1.1 400 Bad Request`.
+Resultado esperado: `HTTP/1.1 400 Bad Request`.
 
-6. Archivo grande:
+### Archivo Grande
 
 ```bash
 curl -o /tmp/archivo_grande.bin http://127.0.0.1:8080/files/archivo_grande.bin
 stat -c%s /tmp/archivo_grande.bin
 ```
 
-Esperado: `1048576`.
+Resultado esperado: descarga completa del archivo. En este repositorio el
+archivo `webapp/files/archivo_grande.bin` esta creado para el caso de prueba de
+aproximadamente 1 MB.
 
-7. Cache MISS/HIT:
+### Cache HIT Y MISS
 
 ```bash
 rm -f pibl/cache/index.html
 curl -I http://127.0.0.1:8080/index.html
 curl -I http://127.0.0.1:8080/index.html
+tail -n 20 pibl/logs/pibl.log
 ```
 
-Esperado: primera peticion registra `MISS` y crea `pibl/cache/index.html`; segunda registra `CACHE HIT` y devuelve header `Age`.
+Resultado esperado:
 
-8. TTL expirado:
+- Primera peticion: MISS y almacenamiento en `pibl/cache/`.
+- Segunda peticion: `CACHE HIT`.
+- Header `Age` en la respuesta servida desde cache.
+
+### TTL Expirado
+
+Arrancar el PIBL con TTL corto:
 
 ```bash
-# Arranca el PIBL con TTL corto:
 ./pibl 8080 pibl.conf logs/pibl.log 2
+```
 
+Luego:
+
+```bash
 curl -I http://127.0.0.1:8080/index.html
 sleep 3
 curl -I http://127.0.0.1:8080/index.html
+tail -n 20 pibl/logs/pibl.log
 ```
 
-Esperado: despues de `sleep 3`, el recurso expira y vuelve a backend.
+Resultado esperado: despues de esperar mas que el TTL, el PIBL invalida el
+cache y consulta nuevamente a un backend.
 
-9. Round Robin:
+### Round Robin
 
 ```bash
 for i in 1 2 3 4 5 6; do
@@ -224,70 +413,142 @@ done
 tail -n 30 pibl/logs/pibl.log
 ```
 
-Esperado: los logs muestran rotacion entre `127.0.0.1:8081`, `8082`, `8083`.
+Resultado esperado: los logs muestran rotacion entre los tres backends
+configurados.
 
-10. Failover:
+### Failover
+
+Detener uno de los TWS y ejecutar:
 
 ```bash
-# Detener uno de los TWS, por ejemplo el de 8082.
 curl -v http://127.0.0.1:8080/index.html
 tail -n 20 pibl/logs/pibl.log
 ```
 
-Esperado: PIBL registra fallo del backend caido e intenta el siguiente.
+Resultado esperado: el PIBL registra el fallo del backend caido e intenta con
+otro backend.
 
-11. Path traversal:
+### Path Traversal
 
 ```bash
 curl -v http://127.0.0.1:8080/../../../etc/passwd
 ```
 
-Esperado: `400 Bad Request` o rechazo equivalente.
+Resultado esperado: rechazo de la solicitud con `400 Bad Request` o respuesta
+equivalente de error.
 
-## Despliegue AWS
+## Despliegue En AWS EC2
 
-Usar cuatro instancias EC2 Ubuntu:
+El despliegue se trabaja con cuatro instancias EC2 Ubuntu dentro de la misma
+VPC: una instancia para el PIBL y tres instancias para los TWS.
 
-- EC2-PIBL: IP publica, puerto 8080 abierto a clientes.
-- EC2-TWS1: IP privada, puerto 8080 abierto desde la VPC.
-- EC2-TWS2: IP privada, puerto 8080 abierto desde la VPC.
-- EC2-TWS3: IP privada, puerto 8080 abierto desde la VPC.
+### Reglas De Red
 
-En cada TWS:
+- La instancia PIBL expone el puerto `8080` a los clientes externos.
+- Las instancias TWS aceptan el puerto `8080` desde la VPC o desde el Security
+  Group del PIBL.
+- El PIBL se conecta a los TWS usando las IPs privadas.
+
+### En Cada TWS
 
 ```bash
 cd ws
+make clean
 make
 mkdir -p logs
 ./tws 8080 logs/tws.log ../webapp
 ```
 
-En PIBL editar `pibl/pibl.conf` con las IPs privadas reales:
+### En PIBL
+
+El archivo `pibl/pibl.conf` debe quedar con las IPs privadas reales de los TWS:
 
 ```text
-backend 10.x.x.x 8080
-backend 10.x.x.y 8080
-backend 10.x.x.z 8080
+backend 10.0.1.196 8080
+backend 10.0.1.171 8080
+backend 10.0.1.190 8080
 ```
 
-Luego:
+Luego se ejecuta el PIBL:
 
 ```bash
 cd pibl
+make clean
 make
 mkdir -p logs cache
 ./pibl 8080 pibl.conf logs/pibl.log 300
 ```
 
+El acceso externo se hace contra la IP publica de la instancia PIBL:
+
+```text
+http://<IP_PUBLICA_PIBL>:8080/index.html
+http://<IP_PUBLICA_PIBL>:8080/gallery.html
+http://<IP_PUBLICA_PIBL>:8080/bigfile.html
+http://<IP_PUBLICA_PIBL>:8080/multifiles.html
+```
+
+> Pendiente: agregar aqui la IP publica final del PIBL cuando el despliegue AWS
+> quede activo.
+
+## Diagramas De Secuencia
+
+Estos son los flujos principales que usamos para explicar el funcionamiento del
+cluster:
+
+| Diagrama | Flujo                                                |
+|----------|-------                                               |
+| DS-01    | `GET` normal con cache MISS y seleccion Round Robin. |
+| DS-02    | Cache HIT servido directamente desde disco.          |
+| DS-03    | Cache expirado por TTL y nueva consulta al backend.  |
+| DS-04    | Peticion `HEAD` sin cuerpo de respuesta.             |
+| DS-05    | Peticion `POST` reenviada al TWS.                    |
+| DS-06    | Manejo de errores HTTP `400` y `404`.                |
+| DS-07    | Arquitectura general de cliente, PIBL y tres TWS.    |
+
+> Pendiente: en este repositorio no se encontro una carpeta `docs/diagramas/`
+> con archivos PlantUML o imagenes finales. La descripcion textual de los flujos
+> esta en `resources/guia-proyecto.md`.
+
+## Evidencias Pendientes
+
+Todavia falta anexar las evidencias visuales de las pruebas. En el repositorio
+no hay una carpeta de evidencias con imagenes de `curl`, navegador o logs.
+
+Evidencias recomendadas para anexar:
+
+- Compilacion exitosa de `ws` y `pibl`.
+- Tres TWS ejecutandose.
+- PIBL ejecutandose.
+- Prueba desde navegador a los cuatro casos de `webapp/`.
+- `curl` de `GET`, `HEAD`, `POST`, `404` y `400`.
+- Logs mostrando Round Robin.
+- Logs mostrando cache MISS, cache HIT y header `Age`.
+- Prueba en AWS usando la IP publica del PIBL.
+
 ## Conclusiones
 
-La solucion separa responsabilidades entre TWS y PIBL: los TWS sirven recursos estaticos y procesan HTTP basico, mientras el PIBL concentra balanceo, failover, cache y logging de las transacciones. El uso de threads permite atender multiples clientes concurrentes y el cache persistente reduce solicitudes repetidas a los backends.
+La solucion separa responsabilidades de forma clara. Los TWS atienden el
+contenido HTTP desde el `DocumentRootFolder`, mientras que el PIBL centraliza el
+acceso externo, decide el backend, maneja fallos, registra actividad y reduce
+consultas repetidas mediante cache en disco.
 
-Los puntos criticos para una sustentacion son verificar compilacion en Linux, demostrar Round Robin con logs, demostrar cache HIT/MISS con `Age`, y probar los cuatro casos de la webapp desde un navegador externo en AWS.
+El uso de threads permite atender multiples conexiones de forma concurrente en
+ambos componentes. El mutex en el balanceador evita condiciones de carrera al
+rotar los backends y el mutex del cache protege las operaciones de lectura y
+escritura sobre archivos compartidos.
+
+Los puntos mas importantes para validar en sustentacion son la compilacion en
+Linux/Ubuntu, la distribucion Round Robin entre los tres TWS, el comportamiento
+MISS/HIT del cache, la expiracion por TTL y el acceso externo al PIBL desplegado
+en AWS.
 
 ## Referencias
 
-- RFC 2616: Hypertext Transfer Protocol HTTP/1.1.
-- Linux man pages: `socket`, `bind`, `listen`, `accept`, `connect`, `read`, `write`.
-- POSIX Threads Programming: `pthread_create`, `pthread_detach`, `pthread_mutex`.
-- Material del curso Telematica/Internet: Arquitectura y Protocolos.
+- Fielding, R. et al. RFC 2616: Hypertext Transfer Protocol -- HTTP/1.1.
+- Linux man pages: `socket`, `bind`, `listen`, `accept`, `connect`, `read`,
+  `write`, `getaddrinfo`.
+- POSIX Threads: `pthread_create`, `pthread_detach`, `pthread_mutex_t`.
+- Beej's Guide to Network Programming: uso de sockets TCP en C.
+- Guia del proyecto: `resources/PDF-ProyectoN1-PILB-WS-v1.0 (1).pdf`.
+- Material del curso de Telematica e Internet.
