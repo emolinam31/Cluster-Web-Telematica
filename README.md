@@ -13,7 +13,6 @@ probar y desplegar el cluster.
 2. Camila Martinez Montoya
 3. Esteban Molina Mejia
 
-> Pendiente: agregar los codigos reales de los integrantes.
 
 ## Alcance Del Proyecto
 
@@ -66,6 +65,47 @@ PIBL concentra las responsabilidades de proxy inverso, balanceo de carga,
 failover, cache persistente en disco y logging.
 
 ## Desarrollo
+
+## Requisitos Funcionales
+
+  ### PIBL - Proxy Inverso + Balanceador de Carga
+
+  | ID | Requisito |
+  |----|-----------|
+  | RF-01 | El PIBL esta escrito en C usando API Sockets. |
+  | RF-02 | El PIBL escucha en puerto `80` o `8080`, segun el valor recibido por linea de comandos. |
+  | RF-03 | Por cada peticion recibida, el PIBL crea un nuevo socket cliente hacia el backend seleccionado. |
+  | RF-04 | El PIBL espera la respuesta del backend y la reenvia al cliente original. |
+  | RF-05 | El PIBL maneja multiples clientes de forma concurrente usando threads. |
+  | RF-06 | El PIBL soporta peticiones HTTP/1.1. |
+  | RF-07 | El PIBL registra peticiones y respuestas en stdout y en archivo de log. |
+  | RF-08 | El PIBL implementa cache persistente en disco. |
+  | RF-09 | El TTL del cache se recibe como parametro al iniciar la aplicacion. |
+  | RF-10 | El PIBL distribuye las peticiones entre backends usando Round Robin. |
+  | RF-11 | El PIBL lee la lista de backends desde un archivo de configuracion. |
+
+  ### TWS - Telematics Web Server
+
+  | ID | Requisito |
+  |----|-----------|
+  | RF-12 | El TWS parsea los metodos HTTP `GET`, `HEAD` y `POST`. |
+  | RF-13 | El TWS responde `200 OK` cuando la peticion es valida y el recurso existe. |
+  | RF-14 | El TWS responde `400 Bad Request` cuando la peticion no puede ser procesada. |
+  | RF-15 | El TWS responde `404 Not Found` cuando el recurso solicitado no existe. |
+  | RF-16 | El TWS maneja multiples clientes de forma concurrente usando threads. |
+  | RF-17 | El TWS registra peticiones y respuestas en stdout y archivo de log. |
+  | RF-18 | El TWS se ejecuta con el formato `./tws <HTTP_PORT> <LogFile> <DocumentRootFolder>`. |
+  | RF-19 | El TWS sirve archivos desde el directorio definido como `DocumentRootFolder`. |
+
+  ### Webapp, Despliegue Y Documentacion
+
+  | ID | Requisito |
+  |----|-----------|
+  | RF-20 | La carpeta `webapp/` contiene los cuatro casos de prueba: pagina base, galeria, archivo grande y multiples
+  archivos. |
+  | RF-21 | La arquitectura se despliega en AWS EC2 usando una instancia para el PIBL y tres instancias para los TWS. |
+  | RF-22 | El `README.md` contiene la documentacion final del proyecto, incluyendo introduccion, desarrollo,
+  conclusiones, referencias, instrucciones de compilacion, ejecucion y pruebas. |
 
 ### Arquitectura General
 
