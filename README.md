@@ -507,7 +507,7 @@ cluster:
 
 | Componente | Evidencia |
 |---|---|
-| PIBL ejecutándose | <img src="https://github.com/user-attachments/assets/0f07277a-6da4-49af-b4b5-41d37e33f016" width="700"/> |
+| PIBL ejecutándose | <img src="https://github.com/user-attachments/assets/fd79ac94-58df-4d85-bb6d-bda59c8017eb" width="500"/> |
 | TWS ejecutándose | <img src="https://github.com/user-attachments/assets/fd79ac94-58df-4d85-bb6d-bda59c8017eb" width="500"/> |
 | EC2 PIBL | <img src="https://github.com/user-attachments/assets/7a165917-77df-47c5-bd7c-5ade1e956db6" width="700"/> |
 | EC2 TWS | <img src="https://github.com/user-attachments/assets/f6464fb6-c134-4173-a5f1-97c602c8ccb3" width="700"/> |
