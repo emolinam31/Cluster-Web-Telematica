@@ -488,9 +488,6 @@ http://<IP_PUBLICA_PIBL>:8080/bigfile.html
 http://<IP_PUBLICA_PIBL>:8080/multifiles.html
 ```
 
-> Pendiente: agregar aqui la IP publica final del PIBL cuando el despliegue AWS
-> quede activo.
-
 ## Diagramas De Secuencia
 
 Estos son los flujos principales que usamos para explicar el funcionamiento del
@@ -506,26 +503,21 @@ cluster:
 | DS-06 | Manejo de errores HTTP `400` y `404`. | ![DS-06](https://github.com/user-attachments/assets/21b40aeb-b5f1-42e9-be7c-95fbf1fa24c1) |
 | DS-07 | Arquitectura general de cliente, PIBL y tres TWS. | ![DS-07](https://github.com/user-attachments/assets/a57eff08-881f-4f4e-8a6a-c5e23222ea7d) |
 
+## Evidencias
 
-> Pendiente: en este repositorio no se encontro una carpeta `docs/diagramas/`
-> con archivos PlantUML o imagenes finales. La descripcion textual de los flujos
-> esta en `resources/guia-proyecto.md`.
+| Componente | Evidencia |
+|---|---|
+| PIBL ejecutándose | <img src="https://github.com/user-attachments/assets/0f07277a-6da4-49af-b4b5-41d37e33f016" width="700"/> |
+| TWS ejecutándose | <img src="https://github.com/user-attachments/assets/fd79ac94-58df-4d85-bb6d-bda59c8017eb" width="500"/> |
+| EC2 PIBL | <img src="https://github.com/user-attachments/assets/7a165917-77df-47c5-bd7c-5ade1e956db6" width="700"/> |
+| EC2 TWS | <img src="https://github.com/user-attachments/assets/f6464fb6-c134-4173-a5f1-97c602c8ccb3" width="700"/> |
+| VPC | <img src="https://github.com/user-attachments/assets/2b0903fb-fcda-4519-94a8-ccac45c8935a" width="700"/> |
+| Security Group PIBL | <img src="https://github.com/user-attachments/assets/1081eed1-5392-46ea-9548-c948495beea7" width="700"/> |
+| Security Group WS | <img src="https://github.com/user-attachments/assets/c82a7665-a2d1-4c24-8bf4-d200d79669e7" width="700"/> |
+| Subnet | <img src="https://github.com/user-attachments/assets/cb94fc18-a063-4da8-82dd-189bddd003d4" width="700"/> |
+| Web App | <img src="https://github.com/user-attachments/assets/a91f1e99-f917-4792-93ea-7c4a77d37cb7" width="700"/> |
+| Prueba final | <img src="https://github.com/user-attachments/assets/d8b8a313-ae0f-455d-9c01-301fc5980414" width="500"/> |
 
-## Evidencias Pendientes
-
-Todavia falta anexar las evidencias visuales de las pruebas. En el repositorio
-no hay una carpeta de evidencias con imagenes de `curl`, navegador o logs.
-
-Evidencias recomendadas para anexar:
-
-- Compilacion exitosa de `ws` y `pibl`.
-- Tres TWS ejecutandose.
-- PIBL ejecutandose.
-- Prueba desde navegador a los cuatro casos de `webapp/`.
-- `curl` de `GET`, `HEAD`, `POST`, `404` y `400`.
-- Logs mostrando Round Robin.
-- Logs mostrando cache MISS, cache HIT y header `Age`.
-- Prueba en AWS usando la IP publica del PIBL.
 
 ## Conclusiones
 
