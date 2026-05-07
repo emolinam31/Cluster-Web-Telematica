@@ -496,29 +496,15 @@ http://<IP_PUBLICA_PIBL>:8080/multifiles.html
 Estos son los flujos principales que usamos para explicar el funcionamiento del
 cluster:
 
-| Diagrama | Flujo                                                |
-|----------|-------                                               |
-| DS-01    | `GET` normal con cache MISS y seleccion Round Robin. |
-| DS-02    | Cache HIT servido directamente desde disco.          |
-| DS-03    | Cache expirado por TTL y nueva consulta al backend.  |
-| DS-04    | Peticion `HEAD` sin cuerpo de respuesta.             |
-| DS-05    | Peticion `POST` reenviada al TWS.                    |
-| DS-06    | Manejo de errores HTTP `400` y `404`.                |
-| DS-07    | Arquitectura general de cliente, PIBL y tres TWS.    |
-
-<img width="1007" height="944" alt="WhatsApp Image 2026-05-05 at 9 39 32 PM" src="https://github.com/user-attachments/assets/54d240a1-8b4e-4e19-aa3f-5456e0a34f7b" />
-
-<img width="955" height="731" alt="WhatsApp Image 2026-05-05 at 9 40 26 PM" src="https://github.com/user-attachments/assets/f615396f-3886-4137-bd3a-5ae0fb170b97" />
-
-<img width="731" height="940" alt="WhatsApp Image 2026-05-05 at 9 41 48 PM" src="https://github.com/user-attachments/assets/d39d3a54-9dfd-4124-a0de-c402773d500d" />
-
-<img width="731" height="940" alt="WhatsApp Image 2026-05-05 at 9 41 48 PM" src="https://github.com/user-attachments/assets/2520d823-1e58-4b37-86f5-694e4e45bb1d" />
-
-<img width="866" height="868" alt="WhatsApp Image 2026-05-05 at 9 42 28 PM" src="https://github.com/user-attachments/assets/e872343e-223d-43d2-957d-ec4ddab39aa7" />
-
-<img width="639" height="889" alt="WhatsApp Image 2026-05-05 at 9 44 20 PM" src="https://github.com/user-attachments/assets/21b40aeb-b5f1-42e9-be7c-95fbf1fa24c1" />
-
-<img width="734" height="931" alt="WhatsApp Image 2026-05-05 at 9 45 06 PM" src="https://github.com/user-attachments/assets/a57eff08-881f-4f4e-8a6a-c5e23222ea7d" />
+| Diagrama | Flujo | Imagen |
+|----------|-------|--------|
+| DS-01 | `GET` normal con cache MISS y selección Round Robin. | ![DS-01](https://github.com/user-attachments/assets/54d240a1-8b4e-4e19-aa3f-5456e0a34f7b) |
+| DS-02 | Cache HIT servido directamente desde disco. | ![DS-02](https://github.com/user-attachments/assets/f615396f-3886-4137-bd3a-5ae0fb170b97) |
+| DS-03 | Cache expirado por TTL y nueva consulta al backend. | ![DS-03](https://github.com/user-attachments/assets/d39d3a54-9dfd-4124-a0de-c402773d500d) |
+| DS-04 | Petición `HEAD` sin cuerpo de respuesta. | ![DS-04](https://github.com/user-attachments/assets/2520d823-1e58-4b37-86f5-694e4e45bb1d) |
+| DS-05 | Petición `POST` reenviada al TWS. | ![DS-05](https://github.com/user-attachments/assets/e872343e-223d-43d2-957d-ec4ddab39aa7) |
+| DS-06 | Manejo de errores HTTP `400` y `404`. | ![DS-06](https://github.com/user-attachments/assets/21b40aeb-b5f1-42e9-be7c-95fbf1fa24c1) |
+| DS-07 | Arquitectura general de cliente, PIBL y tres TWS. | ![DS-07](https://github.com/user-attachments/assets/a57eff08-881f-4f4e-8a6a-c5e23222ea7d) |
 
 
 > Pendiente: en este repositorio no se encontro una carpeta `docs/diagramas/`
