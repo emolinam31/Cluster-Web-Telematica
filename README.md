@@ -508,10 +508,10 @@ cluster:
 | Componente | Evidencia |
 |---|---|
 | PIBL ejecutándose | <img src="https://github.com/user-attachments/assets/fd79ac94-58df-4d85-bb6d-bda59c8017eb" width="500"/> |
-| TWS ejecutándose | <img src="https://github.com/user-attachments/assets/fd79ac94-58df-4d85-bb6d-bda59c8017eb" width="500"/> |
-| EC2 PIBL | <img src="https://github.com/user-attachments/assets/7a165917-77df-47c5-bd7c-5ade1e956db6" width="700"/> |
-| EC2 TWS | <img src="https://github.com/user-attachments/assets/f6464fb6-c134-4173-a5f1-97c602c8ccb3" width="700"/> |
-| VPC | <img src="https://github.com/user-attachments/assets/2b0903fb-fcda-4519-94a8-ccac45c8935a" width="700"/> |
+| TWS ejecutándose | <img src="https://github.com/user-attachments/assets/d8657694-380c-4833-8ae5-6675acba7f5e" width="500"/> |
+| EC2 PIBL | <img src="https://github.com/user-attachments/assets/96a4738b-3709-4db4-83e3-2ab5f1e915ac" width="700"/> |
+| EC2 TWS | <img src="https://github.com/user-attachments/assets/26c6d754-8056-42cd-85c6-1e35f81eede2" width="700"/> |
+| VPC | <img src="https://github.com/user-attachments/assets/f022d2ff-159f-4f72-a604-ff26eb2ac34a" width="700"/> |
 | Security Group PIBL | <img src="https://github.com/user-attachments/assets/1081eed1-5392-46ea-9548-c948495beea7" width="700"/> |
 | Security Group WS | <img src="https://github.com/user-attachments/assets/c82a7665-a2d1-4c24-8bf4-d200d79669e7" width="700"/> |
 | Subnet | <img src="https://github.com/user-attachments/assets/cb94fc18-a063-4da8-82dd-189bddd003d4" width="700"/> |
