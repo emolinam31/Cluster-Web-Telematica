@@ -1,0 +1,7 @@
+Telematics Web Server (TWS) - Archivo de muestra
+============================================================
+
+Este es un archivo de texto plano servido por el TWS para
+verificar el manejo correcto del MIME type 'text/plain'.
+
+Generado: 04/26/2026 19:56:24

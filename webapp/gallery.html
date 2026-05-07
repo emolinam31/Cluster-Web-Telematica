@@ -1,37 +1,78 @@
-<!--
-  =============================================================================
-  webapp/gallery.html - Página de galería de imágenes
-  =============================================================================
-
-  REQUISITOS QUE DEBE CUMPLIR ESTE ARCHIVO:
-    1. Mostrar imágenes que están en la carpeta img/
-    2. Probar que el TWS sirve archivos de tipo image/jpeg, image/png
-    3. Verificar que las rutas relativas (img/foto1.jpg) se resuelven bien
-    4. Caso de prueba: GET /gallery.html → 200 OK
-       Luego el navegador pide GET /img/foto1.jpg → 200 OK, image/jpeg
-
-  CLAVES PARA EL ÉXITO:
-    - Agregar al menos 2-3 imágenes a webapp/img/ para las pruebas
-    - Formatos recomendados: .jpg y .png (para probar dos MIME types)
-    - Si las imágenes no cargan → revisar file_get_content_type()
-    - Verificar que Content-Length sea correcto para archivos binarios
-  =============================================================================
--->
 <!DOCTYPE html>
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <title>TWS - Galería</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TWS - Galería (Caso 2)</title>
     <link rel="stylesheet" href="css/style.css">
+    <link rel="icon" type="image/png" href="img/logo.png">
 </head>
 <body>
-    <h1>Galería de Imágenes</h1>
-    <p>Prueba de servir archivos de imagen desde el TWS.</p>
-    <div>
-        <!-- Agregar imágenes reales en webapp/img/ para las pruebas -->
-        <img src="img/foto1.jpg" alt="Foto 1" width="300">
-        <img src="img/foto2.png" alt="Foto 2" width="300">
-    </div>
-    <a href="index.html">Volver al inicio</a>
+    <header class="site-header">
+        <a href="index.html" class="brand">
+            <img src="img/logo.png" alt="Logo TWS">
+            <span class="brand-title">
+                Telematics Web Server
+                <span class="brand-sub">Caso 2 · Múltiples imágenes</span>
+            </span>
+        </a>
+        <nav class="top-nav">
+            <a href="index.html">Inicio</a>
+            <a href="gallery.html" class="active">Galería</a>
+            <a href="bigfile.html">Archivo grande</a>
+            <a href="multifiles.html">Múltiples archivos</a>
+            <a href="form.html">POST demo</a>
+        </nav>
+    </header>
+
+    <main class="container">
+        <section class="hero">
+            <span class="tag">Caso de prueba 2</span>
+            <h1>Galería de imágenes</h1>
+            <p>
+                Esta página carga varias imágenes en paralelo desde el servidor. Permite verificar
+                que el TWS sirve correctamente <code>image/jpeg</code> y <code>image/png</code>,
+                resuelve rutas con subdirectorio (<code>/img/</code>) y maneja varias peticiones
+                concurrentes desde el mismo navegador.
+            </p>
+        </section>
+
+        <h2>Imágenes</h2>
+        <div class="gallery">
+            <figure>
+                <img src="img/foto1.jpg" alt="Foto 1">
+                <figcaption>foto1.jpg · image/jpeg</figcaption>
+            </figure>
+            <figure>
+                <img src="img/foto2.png" alt="Foto 2">
+                <figcaption>foto2.png · image/png</figcaption>
+            </figure>
+            <figure>
+                <img src="img/foto3.jpg" alt="Foto 3">
+                <figcaption>foto3.jpg · image/jpeg</figcaption>
+            </figure>
+            <figure>
+                <img src="img/foto4.jpg" alt="Foto 4">
+                <figcaption>foto4.jpg · image/jpeg</figcaption>
+            </figure>
+            <figure>
+                <img src="img/foto5.png" alt="Foto 5">
+                <figcaption>foto5.png · image/png</figcaption>
+            </figure>
+            <figure>
+                <img src="img/logo.png" alt="Logo">
+                <figcaption>logo.png · image/png</figcaption>
+            </figure>
+        </div>
+
+        <p>
+            <a href="index.html" class="btn secondary">← Volver al inicio</a>
+        </p>
+    </main>
+
+    <footer class="site-footer">
+        Tip: abre DevTools → Network y verifica que cada imagen retorna <code>200 OK</code>
+        con el <code>Content-Type</code> y <code>Content-Length</code> correctos.
+    </footer>
 </body>
 </html>

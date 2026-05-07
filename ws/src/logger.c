@@ -1,43 +1,67 @@
-/*
- * =============================================================================
- * TWS - logger.c - Sistema de logging dual (stdout + archivo)
- * =============================================================================
- *
- * REQUISITOS QUE DEBE CUMPLIR ESTE ARCHIVO:
- *   1. logger_init(): Abrir el archivo de log en modo append ("a")
- *      - Si no se puede abrir → retornar -1
- *   2. logger_log(): Escribir mensaje con timestamp a:
- *      - stdout (printf/fprintf a stdout)
- *      - archivo de log (fprintf al FILE*)
- *      - Flush ambos después de cada escritura
- *   3. logger_close(): Cerrar el FILE* del log
- *   4. Ser THREAD-SAFE: proteger escrituras con pthread_mutex_t
- *
- * PASOS A TOMAR:
- *   - Paso 1: Variables globales estáticas: FILE *log_fp, pthread_mutex_t mutex
- *   - Paso 2: logger_init() → fopen + pthread_mutex_init
- *   - Paso 3: logger_log() con va_list (variadic):
- *       a. pthread_mutex_lock()
- *       b. Obtener timestamp con time() + localtime() + strftime()
- *       c. Imprimir "[TIMESTAMP] mensaje" a stdout y al archivo
- *       d. fflush(stdout) y fflush(log_fp)
- *       e. pthread_mutex_unlock()
- *   - Paso 4: logger_close() → fclose + pthread_mutex_destroy
- *
- * CLAVES PARA EL ÉXITO:
- *   - SIN MUTEX = corrupcción de datos cuando múltiples threads logean
- *   - Usar va_start / va_end para manejar argumentos variables
- *   - fflush() es crucial: sin él, los logs se pierden si el programa crashea
- *   - Formato del timestamp sugerido: "[2026-03-31 14:30:45]"
- *   - No olvidar el "\n" al final de cada línea de log
- * =============================================================================
- */
-
 #include "logger.h"
 
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <stdarg.h>
-#include <time.h>
 #include <pthread.h>
+#include <stdarg.h>
+#include <stdio.h>
+#include <time.h>
+
+static FILE *g_log_file = NULL;
+static pthread_mutex_t g_log_mutex = PTHREAD_MUTEX_INITIALIZER;
+static int g_logger_ready = 0;
+
+int logger_init(const char *log_file) {
+    g_log_file = fopen(log_file, "a");
+    if (!g_log_file) {
+        return -1;
+    }
+
+    g_logger_ready = 1;
+    return 0;
+}
+
+void logger_log(const char *format, ...) {
+    time_t now;
+    struct tm tm_info;
+    char timestamp[32];
+    va_list args;
+    va_list copy;
+
+    if (!g_logger_ready || !g_log_file) {
+        return;
+    }
+
+    now = time(NULL);
+    localtime_r(&now, &tm_info);
+    strftime(timestamp, sizeof(timestamp), "%Y-%m-%d %H:%M:%S", &tm_info);
+
+    pthread_mutex_lock(&g_log_mutex);
+
+    va_start(args, format);
+    va_copy(copy, args);
+
+    fprintf(stdout, "[%s] ", timestamp);
+    vfprintf(stdout, format, args);
+    fprintf(stdout, "\n");
+    fflush(stdout);
+
+    fprintf(g_log_file, "[%s] ", timestamp);
+    vfprintf(g_log_file, format, copy);
+    fprintf(g_log_file, "\n");
+    fflush(g_log_file);
+
+    va_end(copy);
+    va_end(args);
+
+    pthread_mutex_unlock(&g_log_mutex);
+}
+
+void logger_close(void) {
+    pthread_mutex_lock(&g_log_mutex);
+    if (g_log_file) {
+        fflush(g_log_file);
+        fclose(g_log_file);
+        g_log_file = NULL;
+    }
+    g_logger_ready = 0;
+    pthread_mutex_unlock(&g_log_mutex);
+}

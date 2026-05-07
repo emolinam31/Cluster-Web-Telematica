@@ -30,5 +30,6 @@ void http_response_200(int client_fd, const char *file_path,
                        size_t file_size);
 void http_response_400(int client_fd);
 void http_response_404(int client_fd);
+void http_response_404_head(int client_fd);
 
 #endif

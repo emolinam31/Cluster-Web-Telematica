@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TWS - Demo POST</title>
+    <link rel="stylesheet" href="css/style.css">
+    <link rel="icon" type="image/png" href="img/logo.png">
+</head>
+<body>
+    <header class="site-header">
+        <a href="index.html" class="brand">
+            <img src="img/logo.png" alt="Logo TWS">
+            <span class="brand-title">
+                Telematics Web Server
+                <span class="brand-sub">Demo · Método POST</span>
+            </span>
+        </a>
+        <nav class="top-nav">
+            <a href="index.html">Inicio</a>
+            <a href="gallery.html">Galería</a>
+            <a href="bigfile.html">Archivo grande</a>
+            <a href="multifiles.html">Múltiples archivos</a>
+            <a href="form.html" class="active">POST demo</a>
+        </nav>
+    </header>
+
+    <main class="container">
+        <section class="hero">
+            <span class="tag">Método POST · RFC 2616 §9.5</span>
+            <h1>Envío de datos al servidor</h1>
+            <p>
+                Este formulario envía una petición <code>POST</code> al recurso
+                <code>/submit</code>. Permite verificar que el TWS lee correctamente el
+                <code>Content-Length</code> y el cuerpo de la petición, y que el PIBL
+                reenvía el body completo al backend elegido por Round Robin.
+            </p>
+        </section>
+
+        <h2>Formulario</h2>
+        <form class="demo" action="/submit" method="POST">
+            <div>
+                <label for="nombre">Nombre</label>
+                <input id="nombre" name="nombre" type="text" required placeholder="Tu nombre">
+            </div>
+            <div>
+                <label for="email">Email</label>
+                <input id="email" name="email" type="email" placeholder="tu@correo.com">
+            </div>
+            <div>
+                <label for="mensaje">Mensaje</label>
+                <textarea id="mensaje" name="mensaje" rows="4" required placeholder="Escribe un mensaje..."></textarea>
+            </div>
+            <div>
+                <button type="submit" class="btn">Enviar POST</button>
+                <a href="index.html" class="btn secondary">Cancelar</a>
+            </div>
+        </form>
+
+        <h2>Cómo probarlo desde curl</h2>
+        <pre style="background:rgba(15,23,42,0.7); border:1px solid var(--border); border-radius:8px; padding:14px; overflow:auto;"><code>curl -v -X POST http://&lt;IP_PIBL&gt;:8080/submit \
+  -H "Content-Type: application/x-www-form-urlencoded" \
+  -d "nombre=Felipe&amp;mensaje=Hola"</code></pre>
+
+        <h2>Probar errores</h2>
+        <ul>
+            <li><a href="/no-existe.html">GET /no-existe.html</a> → debe responder <span class="badge warn">404 Not Found</span></li>
+            <li>Petición malformada por telnet → debe responder <span class="badge warn">400 Bad Request</span></li>
+        </ul>
+    </main>
+
+    <footer class="site-footer">
+        El TWS debe procesar el body completo según <code>Content-Length</code>
+        y responder con <code>200 OK</code>.
+    </footer>
+</body>
+</html>

@@ -1,37 +1,73 @@
-/*
- * =============================================================================
- * TWS (Telematics Web Server) - Punto de entrada
- * =============================================================================
- *
- * REQUISITOS QUE DEBE CUMPLIR ESTE ARCHIVO:
- *   1. Parsear argumentos CLI: ./server <HTTP_PORT> <LogFile> <DocumentRootFolder>
- *      - HTTP_PORT: puerto donde escucha el TWS (ej: 8080)
- *      - LogFile: ruta al archivo de log (ej: logs/tws.log)
- *      - DocumentRootFolder: carpeta raíz de recursos web (ej: ../../webapp)
- *   2. Validar que los 3 argumentos estén presentes, si no → error con uso correcto
- *   3. Inicializar el logger (llamar a logger_init con el LogFile)
- *   4. Llamar a server_start(port, doc_root) para iniciar el socket listener
- *
- * PASOS A TOMAR:
- *   - Paso 1: Validar argc == 4
- *   - Paso 2: Extraer port (atoi), log_file, doc_root de argv
- *   - Paso 3: Verificar que doc_root existe (opendir o stat)
- *   - Paso 4: Llamar logger_init(log_file)
- *   - Paso 5: Llamar server_start(port, doc_root)
- *
- * CLAVES PARA EL ÉXITO:
- *   - El programa se ejecuta así: $./server 8080 logs/tws.log ../../webapp
- *   - Si el puerto está ocupado, mostrar error claro
- *   - Si DocumentRootFolder no existe, abortar con mensaje descriptivo
- *   - Este archivo NO debe contener lógica de sockets ni HTTP,
- *     solo parseo de args e inicialización
- * =============================================================================
- */
+#include "logger.h"
+#include "server.h"
 
+#include <errno.h>
+#include <limits.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <unistd.h>
+#include <sys/stat.h>
 
-#include "server.h"
-#include "logger.h"
+static int parse_port(const char *value, int *out_port) {
+    char *end = NULL;
+    long port;
+
+    errno = 0;
+    port = strtol(value, &end, 10);
+    if (errno != 0 || end == value || *end != '\0' ||
+        port < 1 || port > 65535) {
+        return -1;
+    }
+
+    *out_port = (int)port;
+    return 0;
+}
+
+static int is_directory(const char *path) {
+    struct stat st;
+    return stat(path, &st) == 0 && S_ISDIR(st.st_mode);
+}
+
+int main(int argc, char *argv[]) {
+    int port;
+    const char *log_file;
+    const char *doc_root;
+
+    if (argc != 4) {
+        fprintf(stderr, "Uso: %s <HTTP_PORT> <LogFile> <DocumentRootFolder>\n",
+                argv[0]);
+        return 1;
+    }
+
+    if (parse_port(argv[1], &port) < 0) {
+        fprintf(stderr, "Error: puerto invalido '%s'\n", argv[1]);
+        return 1;
+    }
+
+    log_file = argv[2];
+    doc_root = argv[3];
+
+    if (!is_directory(doc_root)) {
+        fprintf(stderr, "Error: DocumentRootFolder no existe o no es directorio: %s\n",
+                doc_root);
+        return 1;
+    }
+
+    if (logger_init(log_file) < 0) {
+        fprintf(stderr, "Error: no se pudo abrir el log: %s\n", log_file);
+        return 1;
+    }
+
+    logger_log("[TWS] Iniciando servidor");
+    logger_log("[TWS] Puerto: %d", port);
+    logger_log("[TWS] LogFile: %s", log_file);
+    logger_log("[TWS] DocumentRoot: %s", doc_root);
+
+    if (server_start(port, doc_root) < 0) {
+        logger_close();
+        return 1;
+    }
+
+    logger_close();
+    return 0;
+}

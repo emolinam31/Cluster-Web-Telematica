@@ -1,40 +1,87 @@
-<!--
-  =============================================================================
-  webapp/index.html - Página principal de prueba del TWS
-  =============================================================================
-
-  REQUISITOS QUE DEBE CUMPLIR ESTE ARCHIVO:
-    1. Página HTML válida que el TWS sirve cuando se pide "/" o "/index.html"
-    2. Debe incluir:
-       - Texto básico para verificar que el servidor responde
-       - Links a las otras páginas de prueba (gallery, bigfile, multifiles)
-       - Referencia al CSS (css/style.css) para probar que el TWS
-         sirve múltiples tipos de archivos
-    3. Caso de prueba: GET / → 200 OK, Content-Type: text/html
-
-  CLAVES PARA EL ÉXITO:
-    - Esta es la primera página que se prueba al iniciar el TWS
-    - Si esta no carga → hay error en file_handler o http_response
-    - El link al CSS verifica que el servidor maneja rutas con subdirectorios
-    - Mantenerla simple para debugging fácil
-  =============================================================================
--->
 <!DOCTYPE html>
 <html lang="es">
 <head>
     <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>TWS - Telematics Web Server</title>
     <link rel="stylesheet" href="css/style.css">
+    <link rel="icon" type="image/png" href="img/logo.png">
 </head>
 <body>
-    <h1>Telematics Web Server (TWS)</h1>
-    <p>Servidor web funcionando correctamente.</p>
-    <nav>
+    <header class="site-header">
+        <a href="index.html" class="brand">
+            <img src="img/logo.png" alt="Logo TWS">
+            <span class="brand-title">
+                Telematics Web Server
+                <span class="brand-sub">PIBL + WS · HTTP/1.1</span>
+            </span>
+        </a>
+        <nav class="top-nav">
+            <a href="index.html" class="active">Inicio</a>
+            <a href="gallery.html">Galería</a>
+            <a href="bigfile.html">Archivo grande</a>
+            <a href="multifiles.html">Múltiples archivos</a>
+            <a href="form.html">POST demo</a>
+        </nav>
+    </header>
+
+    <main class="container">
+        <section class="hero">
+            <span class="tag">Proyecto · Telemática</span>
+            <h1>Servidor web de prueba para PIBL + TWS</h1>
+            <p>
+                Esta aplicación se replica en tres servidores backend (TWS) y se accede a través
+                del Proxy Inverso + Balanceador de Carga (PIBL) implementado en C usando la API
+                Sockets. Cada página cubre uno de los casos de prueba exigidos por el proyecto.
+            </p>
+            <p style="margin-top:16px;">
+                <a href="gallery.html" class="btn">Empezar pruebas</a>
+                <a href="form.html" class="btn secondary">Probar POST</a>
+            </p>
+        </section>
+
+        <h2>Casos de prueba</h2>
+        <p>Cada tarjeta corresponde a uno de los recursos web que el proyecto exige verificar.</p>
+
+        <div class="card-grid">
+            <a href="index.html" class="card">
+                <span class="num">Caso 1</span>
+                <h3>Página con hipertextos e imagen</h3>
+                <span class="desc">Esta misma página: HTML + CSS + un logo.</span>
+                <span class="badge ok">GET / · 200 OK</span>
+            </a>
+            <a href="gallery.html" class="card">
+                <span class="num">Caso 2</span>
+                <h3>Página con múltiples imágenes</h3>
+                <span class="desc">Galería que carga varias imágenes en paralelo.</span>
+                <span class="badge ok">JPG + PNG</span>
+            </a>
+            <a href="bigfile.html" class="card">
+                <span class="num">Caso 3</span>
+                <h3>Archivo único de ~1MB</h3>
+                <span class="desc">Verifica transferencia binaria sin truncar.</span>
+                <span class="badge warn">Binary · 1 MB</span>
+            </a>
+            <a href="multifiles.html" class="card">
+                <span class="num">Caso 4</span>
+                <h3>Múltiples archivos (~1MB total)</h3>
+                <span class="desc">Varios recursos en paralelo (concurrencia).</span>
+                <span class="badge warn">3 archivos</span>
+            </a>
+        </div>
+
+        <h2>¿Qué se prueba aquí?</h2>
         <ul>
-            <li><a href="gallery.html">Galería de imágenes</a></li>
-            <li><a href="bigfile.html">Archivo grande (~1MB)</a></li>
-            <li><a href="multifiles.html">Múltiples archivos</a></li>
+            <li>Servir <code>text/html</code>, <code>text/css</code>, <code>image/jpeg</code>, <code>image/png</code> y <code>application/octet-stream</code>.</li>
+            <li>Manejo correcto de rutas con subdirectorios (<code>/css/</code>, <code>/img/</code>, <code>/files/</code>).</li>
+            <li>Concurrencia: el navegador pide múltiples recursos en paralelo.</li>
+            <li>Métodos <strong>GET</strong>, <strong>HEAD</strong> y <strong>POST</strong> (ver formulario).</li>
+            <li>Errores: <strong>404</strong> (recurso inexistente) y <strong>400</strong> (petición malformada).</li>
         </ul>
-    </nav>
+    </main>
+
+    <footer class="site-footer">
+        Servido por <code>./server &lt;PORT&gt; &lt;LogFile&gt; &lt;DocRoot&gt;</code> detrás del PIBL en AWS EC2.
+    </footer>
 </body>
 </html>
