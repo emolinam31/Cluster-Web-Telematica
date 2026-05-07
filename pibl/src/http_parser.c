@@ -1,35 +1,22 @@
 /*
  * =============================================================================
- * PIBL - http_parser.c - Parser HTTP para requests y responses
+ * PIBL - http_parser.c - Parser HTTP/1.1 para el proxy (RFC 2616)
  * =============================================================================
  *
  * REQUISITOS QUE DEBE CUMPLIR ESTE ARCHIVO:
- *   1. http_parse_request(): Idéntico al TWS - parsear Request-Line + headers
- *   2. http_find_header(): Buscar un header específico en el buffer
- *      - Ej: http_find_header(buf, "Content-Length") → "1234"
- *      - Case-insensitive
- *   3. http_get_content_length(): Wrapper sobre http_find_header
- *      que retorna el valor como int (atoi)
+ *   1. http_find_header(): Buscar un header especifico en un buffer HTTP.
+ *      - Case-insensitive segun RFC 2616 seccion 4.2
+ *      - Retorna puntero al inicio del valor o NULL si no existe
+ *   2. http_get_content_length(): Wrapper sobre http_find_header que retorna
+ *      el valor de Content-Length como entero. Sirve para que el proxy sepa
+ *      cuantos bytes leer del backend antes de cerrar la conexion.
+ *   3. http_parse_request(): Parsear la peticion del cliente antes de
+ *      reenviarla al backend. Misma logica que el WS.
  *
- * PASOS A TOMAR:
- *   - Paso 1: Copiar la implementación base del TWS http_parser.c
- *   - Paso 2: Agregar http_find_header():
- *       a. Buscar "header_name:" en el buffer (case-insensitive)
- *       b. Saltar espacios después de ":"
- *       c. Retornar puntero al inicio del valor
- *   - Paso 3: http_get_content_length():
- *       a. Llamar http_find_header(buf, "Content-Length")
- *       b. Si encontrado → atoi(valor)
- *       c. Si no → retornar -1
- *
- * CLAVES PARA EL ÉXITO:
- *   - El PIBL necesita parsear tanto requests como responses HTTP
- *   - Para responses, la Status-Line es: "HTTP/1.1 200 OK\r\n"
- *     → NO usar http_parse_request para responses
- *   - Content-Length es CRUCIAL para saber cuándo la respuesta del
- *     backend está completa → sin esto, read() se bloquea esperando más datos
- *   - Headers pueden tener espacios variables: "Content-Length: 1234"
- *     o "Content-Length:1234" → manejar ambos casos
+ * CLAVES PARA EL EXITO:
+ *   - Los headers son case-insensitive: "Content-Length:" == "content-length:"
+ *   - El PIBL usa http_find_header sobre RESPUESTAS del backend,
+ *     no solo sobre peticiones del cliente.
  * =============================================================================
  */
 
