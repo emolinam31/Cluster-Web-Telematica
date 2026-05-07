@@ -35,8 +35,9 @@
 -->
 
 ## Integrantes
-- Nombre 1 - Código
-- Nombre 2 - Código
+- Felipe Ochoa
+- Esteban Molina
+- Camila Martinez
 
 ## Compilación y Ejecución
 
