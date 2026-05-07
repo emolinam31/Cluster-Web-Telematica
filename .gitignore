@@ -43,3 +43,7 @@ Thumbs.db
 # Archivos de IDE
 .vscode/
 .idea/
+
+# Documentación local / notas de equipo (no versionar)
+cambios.md
+exposicion.md
